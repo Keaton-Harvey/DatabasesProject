@@ -238,6 +238,148 @@ def get_high_passing_sections(semester_id, percentage_threshold):
 
 # Data Entry
 
+def add_degree(degree_id, name, level):
+    if not degree_id or not name or not level:
+        raise ValueError("Degree ID, Name, and Level are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Degree (degreeID, name, level)
+            VALUES (%s, %s, %s)
+        """, (degree_id, name, level))
+        conn.commit()
+        messagebox.showinfo("Success", "Degree added successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error adding degree: {err}")
+    finally:
+        if conn:
+            conn.close()
+
+def add_course(course_number, name):
+    if not course_number or not name:
+        raise ValueError("Course Number and Name are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Course (courseNumber, name)
+            VALUES (%s, %s)
+        """, (course_number, name))
+        conn.commit()
+        messagebox.showinfo("Success", "Course added successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error adding course: {err}")
+    finally:
+        if conn:
+            conn.close()
+
+def add_instructor(instructor_id, name):
+    if not instructor_id or not name:
+        raise ValueError("Instructor ID and Name are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Instructor (instructorID, name)
+            VALUES (%s, %s)
+        """, (instructor_id, name))
+        conn.commit()
+        messagebox.showinfo("Success", "Instructor added successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error adding instructor: {err}")
+    finally:
+        if conn:
+            conn.close()
+
+def add_section(course_number, section_id, semester_id, instructor_id, enrollment_count):
+    if not course_number or not section_id or not semester_id or not instructor_id:
+        raise ValueError("Course Number, Section ID, Semester ID, and Instructor ID are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Section (courseNumber, sectionID, semesterID, instructorID, enrollmentCount)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (course_number, section_id, semester_id, instructor_id, enrollment_count))
+        conn.commit()
+        messagebox.showinfo("Success", "Section added successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error adding section: {err}")
+    finally:
+        if conn:
+            conn.close()
+
+def add_goal(goal_code, degree_id, description):
+    if not goal_code or not degree_id or not description:
+        raise ValueError("Goal Code, Degree ID, and Description are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Goal (goalCode, degreeID, description)
+            VALUES (%s, %s, %s)
+        """, (goal_code, degree_id, description))
+        conn.commit()
+        messagebox.showinfo("Success", "Goal added successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error adding goal: {err}")
+    finally:
+        if conn:
+            conn.close()
+
+def associate_course_with_goal(course_number, goal_code, degree_id):
+    if not course_number or not goal_code or not degree_id:
+        raise ValueError("Course Number, Goal Code, and Degree ID are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Degree_Course (courseNumber, degreeID, goalCode)
+            VALUES (%s, %s, %s)
+        """, (course_number, degree_id, goal_code))
+        conn.commit()
+        messagebox.showinfo("Success", "Course associated with goal successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error associating course with goal: {err}")
+    finally:
+        if conn:
+            conn.close()
+
+def duplicate_evaluation(source_degree_id, target_degree_id):
+    if not source_degree_id or not target_degree_id:
+        raise ValueError("Source and Target Degree IDs are required.")
+
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Evaluation (courseNumber, sectionID, semesterID, goalCode, evaluationType, gradeCountA, gradeCountB, gradeCountC, gradeCountF, improvementNote)
+            SELECT courseNumber, sectionID, semesterID, goalCode, evaluationType, gradeCountA, gradeCountB, gradeCountC, gradeCountF, improvementNote
+            FROM Evaluation
+            WHERE degreeID = %s
+        """, (source_degree_id,))
+        conn.commit()
+        messagebox.showinfo("Success", "Evaluations duplicated successfully.")
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"Error duplicating evaluations: {err}")
+    finally:
+        if conn:
+            conn.close()
+
 # Fetch semesters
 def fetch_semesters():
     conn = None
@@ -296,12 +438,7 @@ def fetch_sections(instructor_id, semester_id):
         if conn:
             conn.close()
 
-# Fetch evaluation data
-def fetch_evaluations(course_number, section_id, semester_id):
-    if not course_number:
-        raise ValueError("Course Number cannot be empty.")
-    if not section_id:
-        raise ValueError("Section ID cannot be empty.")
+def fetch_evaluation_status(semester_id):
     if not semester_id:
         raise ValueError("Semester ID cannot be empty.")
 
@@ -310,14 +447,21 @@ def fetch_evaluations(course_number, section_id, semester_id):
         conn = connect_to_db()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT goalCode, evaluationType, gradeCountA, gradeCountB, gradeCountC, gradeCountF, improvementNote
-            FROM Evaluation
-            WHERE courseNumber = %s AND sectionID = %s AND semesterID = %s
-        """, (course_number, section_id, semester_id))
+            SELECT S.courseNumber, S.sectionID, 
+                   CASE 
+                       WHEN E.courseNumber IS NULL THEN 'Not Entered'
+                       WHEN E.improvementNote IS NULL THEN 'Partially Entered'
+                       ELSE 'Fully Entered'
+                   END AS evaluation_status
+            FROM Section S
+            LEFT JOIN Evaluation E 
+            ON S.courseNumber = E.courseNumber AND S.sectionID = E.sectionID
+            WHERE S.semesterID = %s;
+        """, (semester_id,))
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
-        messagebox.showerror("Database Query Error", f"An error occurred while fetching evaluations: {err}")
+        messagebox.showerror("Database Query Error", f"An error occurred while fetching evaluation status: {err}")
         return []
     finally:
         if conn:
