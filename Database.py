@@ -1,21 +1,34 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import mysql.connector
+from mysql.connector import errorcode
 
-def connect_to_db():
+def connect_to_db(schema_file_path):
     try:
+        # Connect to MySQL server (defaults to localhost:3306)
         conn = mysql.connector.connect(
             user="cs5330",
             password="pw5330",
-            database="DatabasesProject"
         )
-        return conn
+        
+        if conn.is_connected():
+            print("Connection established. Reading schema...")
+            
+            # Execute the schema file
+            execute_schema_file(conn, schema_file_path)
+            return conn
+        else:
+            messagebox.showerror("Database Connection Error", "Unable to connect to the database server.")
+            return None
+
     except mysql.connector.Error as err:
         # Handle specific MySQL errors
-        if err.errno == mysql.connector.errorcode.ER_ACCESS_DENIED_ERROR:
+        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
             messagebox.showerror("Database Connection Error", "Invalid username or password.")
-        elif err.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
+        elif err.errno == errorcode.ER_BAD_DB_ERROR:
             messagebox.showerror("Database Connection Error", "Database does not exist.")
+        elif err.errno == errorcode.CR_CONN_HOST_ERROR:
+            messagebox.showerror("Database Connection Error", "Unable to connect to the database server. Check if the server is running.")
         else:
             messagebox.showerror("Database Connection Error", f"An unexpected error occurred: {str(err)}")
         return None
@@ -23,6 +36,40 @@ def connect_to_db():
         # Handle unexpected exceptions
         messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
         return None
+
+
+def execute_schema_file(connection, file_path):
+    """
+    Executes an SQL schema file on the given database connection.
+    
+    Parameters:
+        connection: A MySQL connection object.
+        file_path (str): Path to the SQL schema file to execute.
+    """
+    try:
+        cursor = connection.cursor()
+        print(f"Reading schema from: {file_path}")
+
+        # Open and read the schema file
+        with open(file_path, 'r') as file:
+            sql_script = file.read()
+
+        # Execute each SQL statement in the script
+        for statement in sql_script.split(';'):  # Split by semicolon for individual statements
+            if statement.strip():  # Skip empty lines/statements
+                cursor.execute(statement)
+                print(f"Executed: {statement.strip()}")
+
+        print("Schema successfully executed.")
+        connection.commit()
+        cursor.close()
+    except mysql.connector.Error as err:
+        print(f"Error executing schema: {err}")
+    except FileNotFoundError:
+        print(f"Schema file not found: {file_path}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
 
 # Queries:
 
