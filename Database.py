@@ -5,7 +5,7 @@ from mysql.connector import errorcode
 
 def connect_to_db(schema_file_path):
     try:
-        # Connect to MySQL server (defaults to localhost:3306)
+        # Connect to MySQL server
         conn = mysql.connector.connect(
             user="cs5330",
             password="pw5330",
@@ -73,13 +73,25 @@ def execute_schema_file(connection, file_path):
 
 # Queries:
 
-def get_courses_by_degree(degree_id):
+def get_courses_by_degree(degree_id, schema_file_path= 'UniversitySchema.sql'):
+    """
+    Retrieves the list of courses for a specific degree.
+
+    Parameters:
+        degree_id (int): The ID of the degree.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing course details (courseNumber, name, isCore).
+    """
     if not degree_id:
         raise ValueError("Degree ID cannot be empty.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT C.courseNumber, C.name, DC.isCore
@@ -90,13 +102,29 @@ def get_courses_by_degree(degree_id):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
-def get_sections_by_time_range(start_year, end_year):
+def get_sections_by_time_range(start_year, end_year, schema_file_path= 'UniversitySchema.sql'):
+    """
+    Retrieves sections within a specified time range.
+
+    Parameters:
+        start_year (str): The start year of the time range.
+        end_year (str): The end year of the time range.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details (courseNumber, sectionID, year, term).
+    """
     if not start_year.isdigit() or not end_year.isdigit():
         raise ValueError("Start and End years must be numeric.")
     if int(start_year) > int(end_year):
@@ -104,7 +132,9 @@ def get_sections_by_time_range(start_year, end_year):
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.courseNumber, S.sectionID, Sem.year, Sem.term
@@ -116,19 +146,36 @@ def get_sections_by_time_range(start_year, end_year):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
-def get_courses_by_goal(goal_code):
+def get_courses_by_goal(goal_code, schema_file_path= 'UniversitySchema.sql'):
+    """
+    Retrieves courses associated with a specific goal code.
+
+    Parameters:
+        goal_code (str): The code of the goal.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing goal and course details (goalCode, description, courseNumber, name).
+    """
     if not goal_code:
         raise ValueError("Goal Code cannot be empty.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT G.goalCode, G.description, C.courseNumber, C.name
@@ -140,20 +187,37 @@ def get_courses_by_goal(goal_code):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
 
-def get_goals_by_degree(degree_id):
+def get_goals_by_degree(degree_id, schema_file_path= 'UniversitySchema.sql'):
+    """
+    Retrieves goals associated with a specific degree.
+
+    Parameters:
+        degree_id (int): The ID of the degree.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing goal details (goalCode, description).
+    """
     if not degree_id:
         raise ValueError("Degree ID cannot be empty.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT goalCode, description
@@ -163,13 +227,30 @@ def get_goals_by_degree(degree_id):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
-def get_sections_by_course(course_number, start_year, end_year):
+def get_sections_by_course(course_number, start_year, end_year, schema_file_path= 'UniversitySchema.sql'):
+    """
+    Retrieves sections of a course within a specified time range.
+
+    Parameters:
+        course_number (str): The course number.
+        start_year (str): The start year of the time range.
+        end_year (str): The end year of the time range.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details (sectionID, year, term).
+    """
     if not course_number:
         raise ValueError("Course Number cannot be empty.")
     if not start_year.isdigit() or not end_year.isdigit():
@@ -179,7 +260,9 @@ def get_sections_by_course(course_number, start_year, end_year):
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.sectionID, Sem.year, Sem.term
@@ -191,13 +274,30 @@ def get_sections_by_course(course_number, start_year, end_year):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
-def get_sections_by_instructor(instructor_id, start_year, end_year):
+def get_sections_by_instructor(instructor_id, start_year, end_year, schema_file_path='UniversitySchema.sql'):
+    """
+    Retrieves sections taught by a specific instructor within a specified time range.
+
+    Parameters:
+        instructor_id (str): The ID of the instructor.
+        start_year (str): The start year of the time range.
+        end_year (str): The end year of the time range.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details (courseNumber, sectionID, year, term).
+    """
     if not instructor_id:
         raise ValueError("Instructor ID cannot be empty.")
     if not start_year.isdigit() or not end_year.isdigit():
@@ -207,7 +307,9 @@ def get_sections_by_instructor(instructor_id, start_year, end_year):
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.courseNumber, S.sectionID, Sem.year, Sem.term
@@ -219,19 +321,37 @@ def get_sections_by_instructor(instructor_id, start_year, end_year):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
-def get_evaluation_status(semester_id):
+def get_evaluation_status(semester_id, schema_file_path='UniversitySchema.sql'):
+    """
+    Retrieves evaluation status for sections in a specific semester.
+
+    Parameters:
+        semester_id (str): The ID of the semester.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details and evaluation status
+              (courseNumber, sectionID, evaluation_status).
+    """
     if not semester_id:
         raise ValueError("Semester ID cannot be empty.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.courseNumber, S.sectionID, 
@@ -248,13 +368,30 @@ def get_evaluation_status(semester_id):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
-def get_high_passing_sections(semester_id, percentage_threshold):
+def get_high_passing_sections(semester_id, percentage_threshold, schema_file_path='UniversitySchema.sql'):
+    """
+    Retrieves sections with a high passing percentage for a specific semester.
+
+    Parameters:
+        semester_id (str): The ID of the semester.
+        percentage_threshold (float): The minimum percentage of passing grades.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details and pass percentage
+              (courseNumber, sectionID, pass_percentage).
+    """
     if not semester_id:
         raise ValueError("Semester ID cannot be empty.")
     if not isinstance(percentage_threshold, (int, float)):
@@ -262,7 +399,9 @@ def get_high_passing_sections(semester_id, percentage_threshold):
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.courseNumber, S.sectionID, 
@@ -277,7 +416,12 @@ def get_high_passing_sections(semester_id, percentage_threshold):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Show a GUI error message and log the error
         messagebox.showerror("Database Query Error", f"An error occurred: {err}")
+        return []
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
@@ -285,13 +429,27 @@ def get_high_passing_sections(semester_id, percentage_threshold):
 
 # Data Entry
 
-def add_degree(degree_id, name, level):
+def add_degree(degree_id, name, level, schema_file_path='UniversitySchema.sql'):
+    """
+    Adds a new degree to the database.
+
+    Parameters:
+        degree_id (int): The ID of the degree.
+        name (str): The name of the degree.
+        level (str): The level of the degree (e.g., BA, BS, MS, PhD).
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not degree_id or not name or not level:
         raise ValueError("Degree ID, Name, and Level are required.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Degree (degreeID, name, level)
@@ -299,19 +457,40 @@ def add_degree(degree_id, name, level):
         """, (degree_id, name, level))
         conn.commit()
         messagebox.showinfo("Success", "Degree added successfully.")
+
+    except mysql.connector.IntegrityError as err:
+        # Handle potential duplicate entries or constraint violations
+        messagebox.showerror("Integrity Error", f"Could not add degree: {err}")
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error adding degree: {err}")
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-def add_course(course_number, name):
+def add_course(course_number, name, schema_file_path='UniversitySchema.sql'):
+    """
+    Adds a new course to the database.
+
+    Parameters:
+        course_number (str): The unique course number.
+        name (str): The name of the course.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not course_number or not name:
         raise ValueError("Course Number and Name are required.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Course (courseNumber, name)
@@ -319,19 +498,41 @@ def add_course(course_number, name):
         """, (course_number, name))
         conn.commit()
         messagebox.showinfo("Success", "Course added successfully.")
+    except mysql.connector.IntegrityError as err:
+        # Handle potential duplicate entries or constraint violations
+        messagebox.showerror("Integrity Error", f"Could not add course: {err}")
+
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error adding course: {err}")
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-def add_instructor(instructor_id, name):
+def add_instructor(instructor_id, name, schema_file_path='UniversitySchema.sql'):
+    """
+    Adds a new instructor to the database.
+
+    Parameters:
+        instructor_id (str): The unique ID of the instructor.
+        name (str): The name of the instructor.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not instructor_id or not name:
         raise ValueError("Instructor ID and Name are required.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Instructor (instructorID, name)
@@ -339,19 +540,44 @@ def add_instructor(instructor_id, name):
         """, (instructor_id, name))
         conn.commit()
         messagebox.showinfo("Success", "Instructor added successfully.")
+    except mysql.connector.IntegrityError as err:
+        # Handle potential duplicate entries or constraint violations
+        messagebox.showerror("Integrity Error", f"Could not add instructor: {err}")
+
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error adding instructor: {err}")
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-def add_section(course_number, section_id, semester_id, instructor_id, enrollment_count):
+def add_section(course_number, section_id, semester_id, instructor_id, enrollment_count, schema_file_path='UniversitySchema.sql'):
+    """
+    Adds a new section to the database.
+
+    Parameters:
+        course_number (str): The course number associated with the section.
+        section_id (int): The unique ID of the section.
+        semester_id (int): The ID of the semester.
+        instructor_id (int): The ID of the instructor teaching the section.
+        enrollment_count (int): The number of students enrolled in the section.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not course_number or not section_id or not semester_id or not instructor_id:
         raise ValueError("Course Number, Section ID, Semester ID, and Instructor ID are required.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Section (courseNumber, sectionID, semesterID, instructorID, enrollmentCount)
@@ -359,19 +585,42 @@ def add_section(course_number, section_id, semester_id, instructor_id, enrollmen
         """, (course_number, section_id, semester_id, instructor_id, enrollment_count))
         conn.commit()
         messagebox.showinfo("Success", "Section added successfully.")
+    except mysql.connector.IntegrityError as err:
+        # Handle potential duplicate entries or constraint violations
+        messagebox.showerror("Integrity Error", f"Could not add section: {err}")
+
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error adding section: {err}")
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-def add_goal(goal_code, degree_id, description):
+def add_goal(goal_code, degree_id, description, schema_file_path='UniversitySchema.sql'):
+    """
+    Adds a new goal to the database.
+
+    Parameters:
+        goal_code (str): The unique code of the goal.
+        degree_id (int): The ID of the associated degree.
+        description (str): A text description of the goal.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not goal_code or not degree_id or not description:
         raise ValueError("Goal Code, Degree ID, and Description are required.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Goal (goalCode, degreeID, description)
@@ -379,19 +628,42 @@ def add_goal(goal_code, degree_id, description):
         """, (goal_code, degree_id, description))
         conn.commit()
         messagebox.showinfo("Success", "Goal added successfully.")
+    except mysql.connector.IntegrityError as err:
+        # Handle potential duplicate entries or foreign key violations
+        messagebox.showerror("Integrity Error", f"Could not add goal: {err}")
+
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error adding goal: {err}")
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-def associate_course_with_goal(course_number, goal_code, degree_id):
+def associate_course_with_goal(course_number, goal_code, degree_id, schema_file_path='UniversitySchema.sql'):
+    """
+    Associates a course with a goal in the database.
+
+    Parameters:
+        course_number (str): The course number to associate.
+        goal_code (str): The goal code to associate the course with.
+        degree_id (int): The degree ID for the association.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not course_number or not goal_code or not degree_id:
         raise ValueError("Course Number, Goal Code, and Degree ID are required.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Degree_Course (courseNumber, degreeID, goalCode)
@@ -399,19 +671,43 @@ def associate_course_with_goal(course_number, goal_code, degree_id):
         """, (course_number, degree_id, goal_code))
         conn.commit()
         messagebox.showinfo("Success", "Course associated with goal successfully.")
+    except mysql.connector.IntegrityError as err:
+        # Handle potential duplicate entries or foreign key violations
+        messagebox.showerror("Integrity Error", f"Could not associate course with goal: {err}")
+
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error associating course with goal: {err}")
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-def duplicate_evaluation(source_degree_id, target_degree_id):
+def duplicate_evaluation(source_degree_id, target_degree_id, schema_file_path='UniversitySchema.sql'):
+    """
+    Duplicates evaluation records from one degree to another in the database.
+
+    Parameters:
+        source_degree_id (int): The degree ID from which to copy evaluations.
+        target_degree_id (int): The degree ID to which evaluations are copied.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not source_degree_id or not target_degree_id:
         raise ValueError("Source and Target Degree IDs are required.")
+    if source_degree_id == target_degree_id:
+        raise ValueError("Source and Target Degree IDs cannot be the same.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO Evaluation (courseNumber, sectionID, semesterID, goalCode, evaluationType, gradeCountA, gradeCountB, gradeCountC, gradeCountF, improvementNote)
@@ -421,46 +717,99 @@ def duplicate_evaluation(source_degree_id, target_degree_id):
         """, (source_degree_id,))
         conn.commit()
         messagebox.showinfo("Success", "Evaluations duplicated successfully.")
+    except mysql.connector.IntegrityError as err:
+        # Handle constraint violations or duplicate entries
+        messagebox.showerror("Integrity Error", f"Could not duplicate evaluations: {err}")
+
     except mysql.connector.Error as err:
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Error duplicating evaluations: {err}")
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
 
-# Fetch semesters
-def fetch_semesters():
+def fetch_semesters(schema_file_path='UniversitySchema.sql'):
+    """
+    Fetches all semesters from the database.
+
+    Parameters:
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing semester details (semesterID, year, term).
+    """
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("SELECT semesterID, year, term FROM Semester")
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Handle database errors
         messagebox.showerror("Database Query Error", f"An error occurred while fetching semesters: {err}")
         return []
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+        return []
+
     finally:
         if conn:
             conn.close()
 
-# Fetch instructors
-def fetch_instructors():
+def fetch_instructors(schema_file_path='UniversitySchema.sql'):
+    """
+    Fetches all instructors from the database.
+
+    Parameters:
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing instructor details (instructorID, name).
+    """
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("SELECT instructorID, name FROM Instructor")
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Handle database errors
         messagebox.showerror("Database Query Error", f"An error occurred while fetching instructors: {err}")
         return []
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+        return []
+
     finally:
         if conn:
             conn.close()
 
-# Fetch sections taught by instructor in a semester
-def fetch_sections(instructor_id, semester_id):
+def fetch_sections(instructor_id, semester_id, schema_file_path='UniversitySchema.sql'):
+    """
+    Fetches sections taught by a specific instructor in a specific semester.
+
+    Parameters:
+        instructor_id (str): The ID of the instructor.
+        semester_id (str): The ID of the semester.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details (courseNumber, sectionID, courseName).
+    """
     if not instructor_id:
         raise ValueError("Instructor ID cannot be empty.")
     if not semester_id:
@@ -468,7 +817,9 @@ def fetch_sections(instructor_id, semester_id):
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.courseNumber, S.sectionID, C.name
@@ -479,19 +830,39 @@ def fetch_sections(instructor_id, semester_id):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Handle database errors
         messagebox.showerror("Database Query Error", f"An error occurred while fetching sections: {err}")
         return []
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+        return []
+
     finally:
         if conn:
             conn.close()
 
-def fetch_evaluation_status(semester_id):
+def fetch_evaluation_status(semester_id, schema_file_path='UniversitySchema.sql'):
+    """
+    Fetches the evaluation status for sections in a specific semester.
+
+    Parameters:
+        semester_id (str): The ID of the semester.
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        list: A list of tuples containing section details and evaluation status
+              (courseNumber, sectionID, evaluation_status).
+    """
     if not semester_id:
         raise ValueError("Semester ID cannot be empty.")
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT S.courseNumber, S.sectionID, 
@@ -508,20 +879,44 @@ def fetch_evaluation_status(semester_id):
         rows = cursor.fetchall()
         return rows
     except mysql.connector.Error as err:
+        # Handle database errors
         messagebox.showerror("Database Query Error", f"An error occurred while fetching evaluation status: {err}")
+        return []
+
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         return []
     finally:
         if conn:
             conn.close()
 
 # Add or update evaluation
-def save_evaluation(data):
+def save_evaluation(data, schema_file_path='UniversitySchema.sql'):
+    """
+    Saves evaluation data to the database.
+
+    Parameters:
+        data (list of tuples): A list of tuples containing evaluation data. 
+                               Each tuple must have 10 values:
+                               (courseNumber, sectionID, semesterID, goalCode, evaluationType,
+                               gradeCountA, gradeCountB, gradeCountC, gradeCountF, improvementNote).
+        schema_file_path (str): Path to the SQL schema file for initialization.
+
+    Returns:
+        None
+    """
     if not isinstance(data, list) or not all(isinstance(entry, tuple) for entry in data):
         raise ValueError("Data must be a list of tuples.")
+    if not all(len(entry) == 10 for entry in data):
+        raise ValueError("Each entry must have exactly 10 values.")
+
 
     conn = None
     try:
-        conn = connect_to_db()
+        conn = connect_to_db(schema_file_path)
+        if not conn:
+            raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
         for entry in data:
             if len(entry) != 10:
@@ -539,9 +934,14 @@ def save_evaluation(data):
             """, entry)
         conn.commit()
     except mysql.connector.Error as err:
+        # Handle database errors
         messagebox.showerror("Database Query Error", f"An error occurred while saving evaluations: {err}")
     except ValueError as ve:
+        # Handle validation errors
         messagebox.showerror("Data Validation Error", f"Validation failed: {ve}")
+    except Exception as e:
+        # Handle unexpected exceptions
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
     finally:
         if conn:
             conn.close()
