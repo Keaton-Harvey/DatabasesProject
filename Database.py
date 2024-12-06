@@ -267,6 +267,86 @@ def add_course_degree(course_number, degree_id, is_core):
         if conn:
             conn.close()
 
+def associate_course_with_goal(course_number, degree_id, goal_code):
+    """Associate a course with a goal."""
+    conn = None
+    try:
+        conn = connect_to_db()
+        if not conn:
+            raise ConnectionError("Failed to establish database connection")
+        cursor = conn.cursor()
+        
+        # Verify the course exists for this degree
+        cursor.execute("""
+            SELECT 1 FROM Course_Degree 
+            WHERE courseNumber = %s AND degreeID = %s
+        """, (course_number, degree_id))
+        
+        if not cursor.fetchone():
+            raise ValueError("Course must be associated with degree first")
+            
+        # Create association via Evaluation table with default values
+        cursor.execute("""
+            INSERT INTO Evaluation (courseNumber, sectionID, year, term, degreeID, goalCode)
+            SELECT DISTINCT s.courseNumber, s.sectionID, s.year, s.term, %s, %s
+            FROM Section s
+            WHERE s.courseNumber = %s
+        """, (degree_id, goal_code, course_number))
+        
+        conn.commit()
+        messagebox.showinfo("Success", "Course-Goal association added successfully")
+    except mysql.connector.Error as e:
+        messagebox.showerror("Database Error", f"Failed to associate course with goal: {str(e)}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_available_courses_for_semester(year, term):
+    """Get list of courses for a semester."""
+    conn = None
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.courseNumber, c.name 
+            FROM Course c 
+            ORDER BY c.courseNumber
+        """)
+        return cursor.fetchall()
+    finally:
+        if conn:
+            conn.close()
+
+def add_course_to_semester(course_number, section_id, year, term, instructor_id, enrollment_count=0):
+    """Add a course section to a semester."""
+    conn = None
+    try:
+        conn = connect_to_db()
+        if not conn:
+            raise ConnectionError("Failed to establish database connection")
+        cursor = conn.cursor()
+        
+        # Ensure semester exists
+        cursor.execute("""
+            INSERT IGNORE INTO Semester (year, term) 
+            VALUES (%s, %s)
+        """, (year, term))
+        
+        # Add section
+        cursor.execute("""
+            INSERT INTO Section 
+            (courseNumber, sectionID, year, term, instructorID, enrollmentCount)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (course_number, section_id, year, term, instructor_id, enrollment_count))
+        
+        conn.commit()
+        messagebox.showinfo("Success", "Course section added to semester successfully")
+    except mysql.connector.Error as e:
+        messagebox.showerror("Database Error", f"Failed to add course to semester: {str(e)}")
+    finally:
+        if conn:
+            conn.close()
+
 def gui():
     root = tk.Tk()
     root.title("University Database")
@@ -432,6 +512,72 @@ def gui():
 
     ttk.Button(course_degree_tab, text="Add Association", command=handle_add_course_degree).grid(row=3, column=0, columnspan=2, pady=10)
 
+
+    # Course-Goal Association Tab
+    course_goal_tab = ttk.Frame(tabs)
+    tabs.add(course_goal_tab, text="Associate Course with Goal")
+    
+    ttk.Label(course_goal_tab, text="Course Number:").grid(row=0, column=0, padx=5, pady=5)
+    course_goal_course_number = ttk.Entry(course_goal_tab)
+    course_goal_course_number.grid(row=0, column=1, padx=5, pady=5)
+    
+    ttk.Label(course_goal_tab, text="Degree ID:").grid(row=1, column=0, padx=5, pady=5)
+    course_goal_degree_id = ttk.Entry(course_goal_tab)
+    course_goal_degree_id.grid(row=1, column=1, padx=5, pady=5)
+    
+    ttk.Label(course_goal_tab, text="Goal Code:").grid(row=2, column=0, padx=5, pady=5)
+    course_goal_code = ttk.Entry(course_goal_tab)
+    course_goal_code.grid(row=2, column=1, padx=5, pady=5)
+    
+    def handle_associate_course_goal():
+        associate_course_with_goal(
+            course_goal_course_number.get(),
+            course_goal_degree_id.get(),
+            course_goal_code.get()
+        )
+    
+    ttk.Button(course_goal_tab, text="Associate", command=handle_associate_course_goal).grid(row=3, column=0, columnspan=2, pady=10)
+
+    # Semester Course Entry Tab
+    semester_course_tab = ttk.Frame(tabs)
+    tabs.add(semester_course_tab, text="Add Course to Semester")
+    
+    ttk.Label(semester_course_tab, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    semester_course_year = ttk.Entry(semester_course_tab)
+    semester_course_year.grid(row=0, column=1, padx=5, pady=5)
+    
+    ttk.Label(semester_course_tab, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    semester_course_term = ttk.Combobox(semester_course_tab, values=['Spring', 'Summer', 'Fall'])
+    semester_course_term.grid(row=1, column=1, padx=5, pady=5)
+    
+    ttk.Label(semester_course_tab, text="Course Number:").grid(row=2, column=0, padx=5, pady=5)
+    semester_course_number = ttk.Entry(semester_course_tab)
+    semester_course_number.grid(row=2, column=1, padx=5, pady=5)
+    
+    ttk.Label(semester_course_tab, text="Section ID:").grid(row=3, column=0, padx=5, pady=5)
+    semester_section_id = ttk.Entry(semester_course_tab)
+    semester_section_id.grid(row=3, column=1, padx=5, pady=5)
+    
+    ttk.Label(semester_course_tab, text="Instructor ID:").grid(row=4, column=0, padx=5, pady=5)
+    semester_instructor_id = ttk.Entry(semester_course_tab)
+    semester_instructor_id.grid(row=4, column=1, padx=5, pady=5)
+    
+    ttk.Label(semester_course_tab, text="Enrollment Count:").grid(row=5, column=0, padx=5, pady=5)
+    semester_enrollment_count = ttk.Entry(semester_course_tab)
+    semester_enrollment_count.grid(row=5, column=1, padx=5, pady=5)
+    
+    def handle_add_course_to_semester():
+        add_course_to_semester(
+            semester_course_number.get(),
+            semester_section_id.get(),
+            semester_course_year.get(),
+            semester_course_term.get(),
+            semester_instructor_id.get(),
+            semester_enrollment_count.get() or 0
+        )
+    
+    ttk.Button(semester_course_tab, text="Add to Semester", command=handle_add_course_to_semester).grid(row=6, column=0, columnspan=2, pady=10)
+
     # Pack Tabs
     tabs.pack(expand=1, fill="both")
     root.mainloop()
@@ -440,4 +586,3 @@ def gui():
 if __name__ == "__main__":
     gui()
 
-#checking push
