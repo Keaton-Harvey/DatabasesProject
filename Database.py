@@ -347,6 +347,238 @@ def add_course_to_semester(course_number, section_id, year, term, instructor_id,
         if conn:
             conn.close()
 
+def get_evaluation_status_for_semester(year, term):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = """
+    SELECT s.courseNumber, s.sectionID, s.year, s.term, 
+           e.evaluationType, e.gradeCountA, e.gradeCountB, e.gradeCountC, e.gradeCountF, e.improvementNote
+    FROM Section s
+    LEFT JOIN Evaluation e 
+      ON s.courseNumber = e.courseNumber 
+     AND s.sectionID = e.sectionID 
+     AND s.year = e.year 
+     AND s.term = e.term
+    WHERE s.year = %s AND s.term = %s;
+    """
+    cursor.execute(query, (year, term))
+    results = []
+    for row in cursor.fetchall():
+        if row['evaluationType'] is None and row['gradeCountA'] is None:
+            status = "No Evaluation Entered"
+        else:
+            grades_sum = (row['gradeCountA'] or 0) + (row['gradeCountB'] or 0) + (row['gradeCountC'] or 0) + (row['gradeCountF'] or 0)
+            if row['evaluationType'] is not None:
+                if grades_sum > 0:
+                    if row['improvementNote']:
+                        status = "Fully Entered (With Improvement Note)"
+                    else:
+                        status = "Fully Entered (No Improvement Note)"
+                else:
+                    status = "Partially Entered"
+            else:
+                if grades_sum > 0:
+                    status = "Partially Entered"
+                else:
+                    status = "No Evaluation Entered"
+        results.append({
+            'courseNumber': row['courseNumber'],
+            'sectionID': row['sectionID'],
+            'status': status
+        })
+    conn.close()
+    return results
+
+def get_sections_above_percentage(year, term, percentage):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = """
+    SELECT s.courseNumber, s.sectionID, s.enrollmentCount,
+           (e.gradeCountA + e.gradeCountB + e.gradeCountC) as passCount
+    FROM Section s
+    JOIN Evaluation e 
+      ON s.courseNumber = e.courseNumber
+     AND s.sectionID = e.sectionID
+     AND s.year = e.year
+     AND s.term = e.term
+    WHERE s.year = %s AND s.term = %s;
+    """
+    cursor.execute(query, (year, term))
+    results = []
+    for row in cursor.fetchall():
+        if row['enrollmentCount'] > 0:
+            ratio = (row['passCount'] / row['enrollmentCount']) * 100
+            if ratio >= percentage:
+                results.append(row)
+    conn.close()
+    return results
+
+def get_sections_for_instructor(year, term, instructor_id):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = """
+    SELECT s.courseNumber, s.sectionID, s.enrollmentCount
+    FROM Section s
+    WHERE s.year = %s AND s.term = %s AND s.instructorID = %s;
+    """
+    cursor.execute(query, (year, term, instructor_id))
+    sections = cursor.fetchall()
+    conn.close()
+    return sections
+
+def get_evaluations_for_section(courseNumber, sectionID, year, term):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = """
+    SELECT e.*, g.description as goalDescription, d.name as degreeName
+    FROM Evaluation e
+    JOIN Goal g ON e.degreeID = g.degreeID AND e.goalCode = g.goalCode
+    JOIN Degree d ON e.degreeID = d.degreeID
+    WHERE e.courseNumber = %s AND e.sectionID = %s AND e.year = %s AND e.term = %s;
+    """
+    cursor.execute(query, (courseNumber, sectionID, year, term))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_degrees_for_course(courseNumber):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = """
+    SELECT d.degreeID, d.name, cd.isCore
+    FROM Course_Degree cd
+    JOIN Degree d ON cd.degreeID = d.degreeID
+    WHERE cd.courseNumber = %s;
+    """
+    cursor.execute(query, (courseNumber,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def update_evaluation(courseNumber, sectionID, year, term, degreeID, goalCode, evaluationType, gradeA, gradeB, gradeC, gradeF, improvementNote):
+    conn = connect_to_db()
+    if not conn:
+        return
+    cursor = conn.cursor()
+    query = """
+    INSERT INTO Evaluation (courseNumber, sectionID, year, term, degreeID, goalCode, evaluationType, gradeCountA, gradeCountB, gradeCountC, gradeCountF, improvementNote)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE 
+      evaluationType=VALUES(evaluationType),
+      gradeCountA=VALUES(gradeCountA),
+      gradeCountB=VALUES(gradeCountB),
+      gradeCountC=VALUES(gradeCountC),
+      gradeCountF=VALUES(gradeCountF),
+      improvementNote=VALUES(improvementNote);
+    """
+    cursor.execute(query, (courseNumber, sectionID, year, term, degreeID, goalCode, evaluationType, gradeA, gradeB, gradeC, gradeF, improvementNote))
+    conn.commit()
+    conn.close()
+
+def get_degree_courses(degreeID):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = """
+    SELECT c.courseNumber, c.name, cd.isCore
+    FROM Course_Degree cd
+    JOIN Course c ON cd.courseNumber = c.courseNumber
+    WHERE cd.degreeID = %s;
+    """
+    cursor.execute(query, (degreeID,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_degree_goals(degreeID):
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    query = "SELECT goalCode, description FROM Goal WHERE degreeID = %s;"
+    cursor.execute(query, (degreeID,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_courses_for_goals(degreeID, goalCodes):
+    conn = connect_to_db()
+    if not conn or not goalCodes:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    format_str = ','.join(['%s'] * len(goalCodes))
+    query = f"""
+    SELECT DISTINCT c.courseNumber, c.name, g.goalCode
+    FROM Evaluation e
+    JOIN Course c ON e.courseNumber = c.courseNumber
+    JOIN Goal g ON e.degreeID = g.degreeID AND e.goalCode = g.goalCode
+    WHERE e.degreeID = %s AND g.goalCode IN ({format_str});
+    """
+    params = [degreeID] + goalCodes
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_course_sections_in_range(courseNumber, startYear, startTerm, endYear, endTerm):
+    term_order = {'Spring': 1, 'Summer': 2, 'Fall': 3}
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+    SELECT * FROM Section
+    WHERE courseNumber = %s
+    ORDER BY year, term
+    """, (courseNumber,))
+    rows = cursor.fetchall()
+    def term_key(y, t):
+        return y * 10 + term_order[t]
+    start_val = term_key(int(startYear), startTerm)
+    end_val = term_key(int(endYear), endTerm)
+    filtered = []
+    for r in rows:
+        val = term_key(r['year'], r['term'])
+        if start_val <= val <= end_val:
+            filtered.append(r)
+    conn.close()
+    return filtered
+
+def get_instructor_sections_in_range(instructorID, startYear, startTerm, endYear, endTerm):
+    term_order = {'Spring': 1, 'Summer': 2, 'Fall': 3}
+    conn = connect_to_db()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+    SELECT * FROM Section
+    WHERE instructorID = %s
+    ORDER BY year, term
+    """, (instructorID,))
+    rows = cursor.fetchall()
+    def term_key(y, t):
+        return y * 10 + term_order[t]
+    start_val = term_key(int(startYear), startTerm)
+    end_val = term_key(int(endYear), endTerm)
+    filtered = []
+    for r in rows:
+        val = term_key(r['year'], r['term'])
+        if start_val <= val <= end_val:
+            filtered.append(r)
+    conn.close()
+    return filtered
+
 def gui():
     root = tk.Tk()
     root.title("University Database")
@@ -577,6 +809,187 @@ def gui():
         )
     
     ttk.Button(semester_course_tab, text="Add to Semester", command=handle_add_course_to_semester).grid(row=6, column=0, columnspan=2, pady=10)
+
+    queries_tab = ttk.Frame(tabs)
+    tabs.add(queries_tab, text="Queries & Evaluations")
+
+    query_notebook = ttk.Notebook(queries_tab)
+    query_notebook.pack(expand=1, fill="both", padx=10, pady=10)
+
+    eval_status_frame = ttk.Frame(query_notebook)
+    query_notebook.add(eval_status_frame, text="Evaluation Status by Semester")
+
+    ttk.Label(eval_status_frame, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    eval_status_year_entry = ttk.Entry(eval_status_frame)
+    eval_status_year_entry.grid(row=0, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_status_frame, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    eval_status_term_entry = ttk.Entry(eval_status_frame)
+    eval_status_term_entry.grid(row=1, column=1, padx=5, pady=5)
+
+    eval_status_tree = ttk.Treeview(eval_status_frame, columns=("CourseNumber","SectionID","Status"), show='headings')
+    eval_status_tree.heading("CourseNumber", text="Course Number")
+    eval_status_tree.heading("SectionID", text="Section ID")
+    eval_status_tree.heading("Status", text="Evaluation Status")
+    eval_status_tree.grid(row=3, column=0, columnspan=2, sticky='nsew')
+
+    def handle_eval_status_query():
+        for i in eval_status_tree.get_children():
+            eval_status_tree.delete(i)
+        year = eval_status_year_entry.get()
+        term = eval_status_term_entry.get()
+        results = get_evaluation_status_for_semester(year, term)
+        for r in results:
+            eval_status_tree.insert('', 'end', values=(r['courseNumber'], r['sectionID'], r['status']))
+
+    ttk.Button(eval_status_frame, text="Get Evaluation Status", command=handle_eval_status_query).grid(row=2, column=0, columnspan=2, pady=10)
+
+    percentage_frame = ttk.Frame(query_notebook)
+    query_notebook.add(percentage_frame, text="Sections Above Percentage")
+
+    ttk.Label(percentage_frame, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    pct_year_entry = ttk.Entry(percentage_frame)
+    pct_year_entry.grid(row=0, column=1, padx=5, pady=5)
+
+    ttk.Label(percentage_frame, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    pct_term_entry = ttk.Entry(percentage_frame)
+    pct_term_entry.grid(row=1, column=1, padx=5, pady=5)
+
+    ttk.Label(percentage_frame, text="Percentage:").grid(row=2, column=0, padx=5, pady=5)
+    pct_entry = ttk.Entry(percentage_frame)
+    pct_entry.grid(row=2, column=1, padx=5, pady=5)
+
+    pct_tree = ttk.Treeview(percentage_frame, columns=("CourseNumber","SectionID","EnrollmentCount","PassCount"), show='headings')
+    pct_tree.heading("CourseNumber", text="Course Number")
+    pct_tree.heading("SectionID", text="Section ID")
+    pct_tree.heading("EnrollmentCount", text="Enrollment")
+    pct_tree.heading("PassCount", text="A+B+C Count")
+    pct_tree.grid(row=4, column=0, columnspan=2, sticky='nsew')
+
+    def handle_pct_query():
+        for i in pct_tree.get_children():
+            pct_tree.delete(i)
+        year = pct_year_entry.get()
+        term = pct_term_entry.get()
+        percentage = float(pct_entry.get())
+        results = get_sections_above_percentage(year, term, percentage)
+        for r in results:
+            pct_tree.insert('', 'end', values=(r['courseNumber'], r['sectionID'], r['enrollmentCount'], r['passCount']))
+
+    ttk.Button(percentage_frame, text="Get Sections", command=handle_pct_query).grid(row=3, column=0, columnspan=2, pady=10)
+
+    eval_entry_frame = ttk.Frame(query_notebook)
+    query_notebook.add(eval_entry_frame, text="Enter/Update Evaluations")
+
+    ttk.Label(eval_entry_frame, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    eval_ent_year = ttk.Entry(eval_entry_frame)
+    eval_ent_year.grid(row=0, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    eval_ent_term = ttk.Entry(eval_entry_frame)
+    eval_ent_term.grid(row=1, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Instructor ID:").grid(row=2, column=0, padx=5, pady=5)
+    eval_ent_instructor = ttk.Entry(eval_entry_frame)
+    eval_ent_instructor.grid(row=2, column=1, padx=5, pady=5)
+
+    eval_sections_tree = ttk.Treeview(eval_entry_frame, columns=("CourseNumber","SectionID","Enrollment"), show='headings')
+    eval_sections_tree.heading("CourseNumber", text="Course Number")
+    eval_sections_tree.heading("SectionID", text="Section ID")
+    eval_sections_tree.heading("Enrollment", text="Enrollment")
+    eval_sections_tree.grid(row=4, column=0, columnspan=2, sticky='nsew')
+
+    def handle_list_instructor_sections():
+        for i in eval_sections_tree.get_children():
+            eval_sections_tree.delete(i)
+        year = eval_ent_year.get()
+        term = eval_ent_term.get()
+        instr = eval_ent_instructor.get()
+        sections = get_sections_for_instructor(year, term, instr)
+        for s in sections:
+            eval_sections_tree.insert('', 'end', values=(s['courseNumber'], s['sectionID'], s['enrollmentCount']))
+
+    ttk.Button(eval_entry_frame, text="List Sections", command=handle_list_instructor_sections).grid(row=3, column=0, columnspan=2, pady=10)
+
+    ttk.Label(eval_entry_frame, text="Select Section and Enter New/Update Evaluations Below:").grid(row=5, column=0, columnspan=2)
+
+    ttk.Label(eval_entry_frame, text="DegreeID:").grid(row=6, column=0, padx=5, pady=5)
+    eval_deg_id = ttk.Entry(eval_entry_frame)
+    eval_deg_id.grid(row=6, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="GoalCode:").grid(row=7, column=0, padx=5, pady=5)
+    eval_goal_code = ttk.Entry(eval_entry_frame)
+    eval_goal_code.grid(row=7, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Eval Type:").grid(row=8, column=0, padx=5, pady=5)
+    eval_type = ttk.Entry(eval_entry_frame)
+    eval_type.grid(row=8, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Grade A:").grid(row=9, column=0, padx=5, pady=5)
+    eval_A = ttk.Entry(eval_entry_frame)
+    eval_A.grid(row=9, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Grade B:").grid(row=10, column=0, padx=5, pady=5)
+    eval_B = ttk.Entry(eval_entry_frame)
+    eval_B.grid(row=10, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Grade C:").grid(row=11, column=0, padx=5, pady=5)
+    eval_C = ttk.Entry(eval_entry_frame)
+    eval_C.grid(row=11, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Grade F:").grid(row=12, column=0, padx=5, pady=5)
+    eval_F = ttk.Entry(eval_entry_frame)
+    eval_F.grid(row=12, column=1, padx=5, pady=5)
+
+    ttk.Label(eval_entry_frame, text="Improvement Note:").grid(row=13, column=0, padx=5, pady=5)
+    eval_improve = ttk.Entry(eval_entry_frame)
+    eval_improve.grid(row=13, column=1, padx=5, pady=5)
+
+    def handle_update_evaluation():
+        sel = eval_sections_tree.selection()
+        if not sel:
+            messagebox.showerror("Error", "No section selected.")
+            return
+        vals = eval_sections_tree.item(sel[0], 'values')
+        courseNumber, sectionID, _ = vals
+        year = eval_ent_year.get()
+        term = eval_ent_term.get()
+        degreeID = eval_deg_id.get()
+        goalCode = eval_goal_code.get()
+        evaluationType = eval_type.get()
+        gradeA = int(eval_A.get() or 0)
+        gradeB = int(eval_B.get() or 0)
+        gradeC = int(eval_C.get() or 0)
+        gradeF = int(eval_F.get() or 0)
+        improvementNote = eval_improve.get()
+
+        update_evaluation(courseNumber, sectionID, year, term, degreeID, goalCode, evaluationType, gradeA, gradeB, gradeC, gradeF, improvementNote)
+        messagebox.showinfo("Success", "Evaluation updated.")
+
+    ttk.Button(eval_entry_frame, text="Update Evaluation", command=handle_update_evaluation).grid(row=14, column=0, columnspan=2, pady=10)
+
+    additional_queries_frame = ttk.Frame(query_notebook)
+    query_notebook.add(additional_queries_frame, text="Additional Queries")
+
+    ttk.Label(additional_queries_frame, text="Degree ID:").grid(row=0, column=0, padx=5, pady=5)
+    aq_degree_entry = ttk.Entry(additional_queries_frame)
+    aq_degree_entry.grid(row=0, column=1, padx=5, pady=5)
+
+    aq_courses_tree = ttk.Treeview(additional_queries_frame, columns=("CourseNumber","Name","IsCore"), show='headings')
+    aq_courses_tree.heading("CourseNumber", text="Course Number")
+    aq_courses_tree.heading("Name", text="Name")
+    aq_courses_tree.heading("IsCore", text="Is Core")
+    aq_courses_tree.grid(row=2, column=0, columnspan=2, sticky='nsew')
+
+    def handle_degree_courses_query():
+        for i in aq_courses_tree.get_children():
+            aq_courses_tree.delete(i)
+        degID = aq_degree_entry.get()
+        rows = get_degree_courses(degID)
+        for r in rows:
+            aq_courses_tree.insert('', 'end', values=(r['courseNumber'], r['name'], r['isCore']))
+
+    ttk.Button(additional_queries_frame, text="List Degree Courses", command=handle_degree_courses_query).grid(row=1, column=0, columnspan=2, pady=10)
 
     # Pack Tabs
     tabs.pack(expand=1, fill="both")
