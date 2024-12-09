@@ -190,6 +190,7 @@ def add_course(course_number, name):
             conn.close()
 
 def add_instructor(instructor_id, name):
+    import re
     """
     Add a new instructor to the database.
 
@@ -204,6 +205,16 @@ def add_instructor(instructor_id, name):
     if not instructor_id.strip() or not name.strip():
         messagebox.showerror("Input Error", "Both fields (Instructor ID and Name) are required.")
         return
+    
+    # Validate degree_id is a positive integer
+    try:
+        instructor_id = int(instructor_id)  # Convert to integer for validation
+        if instructor_id <= 0:
+            messagebox.showerror("Validation Error", "Instructor ID must be a positive integer.")
+            return
+    except ValueError:
+        messagebox.showerror("Validation Error", "Instructor ID must be a positive integer.")
+        return
 
     conn = None
     try:
@@ -212,9 +223,11 @@ def add_instructor(instructor_id, name):
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
 
-        # Validate instructor ID is exactly 8 characters
-        if len(instructor_id) != 8:
-            raise ValueError("Instructor ID must be exactly 8 characters.")
+        instructor_id = str(instructor_id)
+
+        # Validate instructor ID is exactly 8 numeric characters
+        if not re.match(r'^\d{8}$', instructor_id):
+            raise ValueError("Instructor ID must be exactly 8 numeric characters.")
 
         cursor.execute("""
             INSERT INTO Instructor (instructorID, name)
