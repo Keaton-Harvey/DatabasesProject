@@ -96,6 +96,16 @@ def add_degree(degree_id, name, level):
     if not degree_id.strip() or not name.strip() or not level.strip():
         messagebox.showerror("Input Error", "All fields (Degree ID, Name, and Level) are required.")
         return
+
+    # Validate degree_id is a positive integer
+    try:
+        degree_id = int(degree_id)  # Convert to integer for validation
+        if degree_id <= 0:
+            messagebox.showerror("Validation Error", "Degree ID must be a positive integer.")
+            return
+    except ValueError:
+        messagebox.showerror("Validation Error", "Degree ID must be a positive integer.")
+        return
     
     # Validate degree name contains only alphabetic characters and spaces
     if not re.match(r'^[A-Za-z\s]+$', name):
