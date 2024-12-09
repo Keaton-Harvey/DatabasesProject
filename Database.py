@@ -5,37 +5,27 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 # Database connection setup
-def connect_to_db():
-    """Establishes connection to the database and creates schema if needed."""
+def connect_to_db(run_schema=False):
+    """Establish connection to the database."""
     try:
         conn = mysql.connector.connect(
             host="localhost",
             user="cs5330",
             password="pw5330",
+            database="university",  # Specify the database to avoid re-creating it
             charset='utf8mb4'
         )
-        
-        if not conn.is_connected():
-            raise mysql.connector.Error("Failed to connect to MySQL server")
-            
-        print("Connection established. Creating database if it doesn't exist...")
-        cursor = conn.cursor(buffered=True)
-        
-        cursor.execute("CREATE DATABASE IF NOT EXISTS university")
-        cursor.execute("USE university")
-        print("Database selected.")
-        
-        schema_path = os.path.join(os.path.dirname(__file__), 'UniversitySchema.sql')
-        execute_schema_file(conn, schema_path)
-        
-        return conn
 
+        if run_schema:
+            print("Executing schema file...")
+            schema_path = os.path.join(os.path.dirname(__file__), 'UniversitySchema.sql')
+            execute_schema_file(conn, schema_path)
+
+        return conn
     except mysql.connector.Error as err:
-        handle_mysql_error(err)
+        print(f"Database Error: {err}")
         return None
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-        return None
+
 
 def execute_schema_file(connection, file_path):
     """Executes the SQL schema file."""
@@ -78,153 +68,278 @@ def handle_mysql_error(err):
 
 # Basic record addition functions
 def add_degree(degree_id, name, level):
-    """Add a new degree program."""
+    """
+    Add a new degree program.
+    """
+    # Ensure all required fields are provided
+    if not degree_id.strip() or not name.strip() or not level.strip():
+        messagebox.showerror("Input Error", "All fields (Degree ID, Name, and Level) are required.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-        
+
         # Validate level is one of the allowed values
         valid_levels = ['BA', 'BS', 'MS', 'Ph.D.', 'Cert']
         if level not in valid_levels:
             raise ValueError(f"Invalid level. Must be one of: {', '.join(valid_levels)}")
-            
+
         cursor.execute("""
             INSERT INTO Degree (degreeID, name, level)
             VALUES (%s, %s, %s)
         """, (degree_id, name, level))
         conn.commit()
         messagebox.showinfo("Success", "Degree added successfully.")
+    except ValueError as ve:
+        # Handle validation errors for the level
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to add degree: {str(e)}")
     finally:
         if conn:
             conn.close()
 
+
 def add_course(course_number, name):
-    """Add a new course."""
+    """
+    Add a new course to the database.
+
+    Parameters:
+        course_number (str): The unique course number.
+        name (str): The name of the course.
+
+    Returns:
+        None
+    """
+    # Ensure both fields are provided
+    if not course_number.strip() or not name.strip():
+        messagebox.showerror("Input Error", "Both fields (Course Number and Name) are required.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-        
+
         # Validate course number format (2-4 letters + 4 digits)
         import re
         if not re.match(r'^[A-Z]{2,4}\d{4}$', course_number):
-            raise ValueError("Course number must be 2-4 letters followed by 4 digits")
-            
+            raise ValueError("Course number must be 2-4 uppercase letters followed by 4 digits.")
+
         cursor.execute("""
             INSERT INTO Course (courseNumber, name)
             VALUES (%s, %s)
         """, (course_number, name))
         conn.commit()
         messagebox.showinfo("Success", "Course added successfully.")
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to add course: {str(e)}")
     finally:
         if conn:
             conn.close()
 
+
 def add_instructor(instructor_id, name):
-    """Add a new instructor."""
+    """
+    Add a new instructor to the database.
+
+    Parameters:
+        instructor_id (str): The unique ID of the instructor.
+        name (str): The name of the instructor.
+
+    Returns:
+        None
+    """
+    # Ensure both fields are provided
+    if not instructor_id.strip() or not name.strip():
+        messagebox.showerror("Input Error", "Both fields (Instructor ID and Name) are required.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-        
-        # Validate instructor ID is 8 characters
+
+        # Validate instructor ID is exactly 8 characters
         if len(instructor_id) != 8:
-            raise ValueError("Instructor ID must be exactly 8 characters")
-            
+            raise ValueError("Instructor ID must be exactly 8 characters.")
+
         cursor.execute("""
             INSERT INTO Instructor (instructorID, name)
             VALUES (%s, %s)
         """, (instructor_id, name))
         conn.commit()
         messagebox.showinfo("Success", "Instructor added successfully.")
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to add instructor: {str(e)}")
     finally:
         if conn:
             conn.close()
 
 def add_goal(goal_code, degree_id, description):
-    """Add a new goal for a degree program."""
+    """
+    Add a new goal to the database.
+
+    Parameters:
+        goal_code (str): The unique code of the goal.
+        degree_id (str): The ID of the associated degree.
+        description (str): A text description of the goal.
+
+    Returns:
+        None
+    """
+    # Ensure all fields are provided
+    if not goal_code.strip() or not degree_id.strip() or not description.strip():
+        messagebox.showerror("Input Error", "All fields (Goal Code, Degree ID, and Description) are required.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-        
+
         # Validate goal code is exactly 4 characters
         if len(goal_code) != 4:
-            raise ValueError("Goal code must be exactly 4 characters")
-            
+            raise ValueError("Goal code must be exactly 4 characters.")
+
         cursor.execute("""
             INSERT INTO Goal (goalCode, degreeID, description)
             VALUES (%s, %s, %s)
         """, (goal_code, degree_id, description))
         conn.commit()
         messagebox.showinfo("Success", "Goal added successfully.")
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to add goal: {str(e)}")
     finally:
         if conn:
             conn.close()
 
 def add_semester(year, term):
-    """Add a new semester."""
+    """
+    Add a new semester to the database.
+
+    Parameters:
+        year (str): The year of the semester.
+        term (str): The term of the semester (e.g., Spring, Summer, Fall).
+
+    Returns:
+        None
+    """
+    # Ensure both fields are provided
+    if not year.strip() or not term.strip():
+        messagebox.showerror("Input Error", "Both fields (Year and Term) are required.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-        
+
+        # Validate year is a four-digit number
+        if not year.isdigit() or len(year) != 4:
+            raise ValueError("Year must be a valid 4-digit number.")
+
         # Validate term is one of the allowed values
         valid_terms = ['Spring', 'Summer', 'Fall']
         if term not in valid_terms:
-            raise ValueError(f"Invalid term. Must be one of: {', '.join(valid_terms)}")
-            
+            raise ValueError(f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
+
         cursor.execute("""
             INSERT INTO Semester (year, term)
             VALUES (%s, %s)
         """, (year, term))
         conn.commit()
         messagebox.showinfo("Success", "Semester added successfully.")
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to add semester: {str(e)}")
     finally:
         if conn:
             conn.close()
 
 def add_section(course_number, section_id, year, term, instructor_id, enrollment_count):
-    """Add a new section for a course."""
+    """
+    Add a new section to the database.
+
+    Parameters:
+        course_number (str): The course number associated with the section.
+        section_id (str): The unique ID of the section (3 characters).
+        year (str): The year of the semester.
+        term (str): The term of the semester (e.g., Spring, Summer, Fall).
+        instructor_id (str): The ID of the instructor teaching the section.
+        enrollment_count (str): The number of students enrolled in the section.
+
+    Returns:
+        None
+    """
+    # Ensure all fields are provided
+    if not course_number.strip() or not section_id.strip() or not year.strip() or not term.strip() or not instructor_id.strip() or not enrollment_count.strip():
+        messagebox.showerror("Input Error", "All fields are required to add a section.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-        
-        # Validate section_id is 3 characters
+
+        # Validate section_id is exactly 3 characters
         if len(section_id) != 3:
-            raise ValueError("Section ID must be exactly 3 characters")
-            
+            raise ValueError("Section ID must be exactly 3 characters.")
+
+        # Validate year is a four-digit number
+        if not year.isdigit() or len(year) != 4:
+            raise ValueError("Year must be a valid 4-digit number.")
+
+        # Validate term is one of the allowed values
+        valid_terms = ['Spring', 'Summer', 'Fall']
+        if term not in valid_terms:
+            raise ValueError(f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
+
+        # Validate enrollment_count is a non-negative integer
+        if not enrollment_count.isdigit() or int(enrollment_count) < 0:
+            raise ValueError("Enrollment count must be a non-negative integer.")
+
         cursor.execute("""
             INSERT INTO Section (courseNumber, sectionID, year, term, instructorID, enrollmentCount)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (course_number, section_id, year, term, instructor_id, enrollment_count))
+        """, (course_number, section_id, year, term, instructor_id, int(enrollment_count)))
         conn.commit()
         messagebox.showinfo("Success", "Section added successfully.")
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to add section: {str(e)}")
     finally:
         if conn:
@@ -252,34 +367,61 @@ def add_course_degree(course_number, degree_id, is_core):
             conn.close()
 
 def associate_course_with_goal(course_number, degree_id, goal_code):
-    """Associate a course with a goal."""
+    """
+    Associate a course with a goal for a specific degree.
+
+    Parameters:
+        course_number (str): The course number to associate.
+        degree_id (str): The degree ID to associate.
+        goal_code (str): The goal code to associate.
+
+    Returns:
+        None
+    """
+    # Ensure all fields are provided
+    if not course_number.strip() or not degree_id.strip() or not goal_code.strip():
+        messagebox.showerror("Input Error", "All fields (Course Number, Degree ID, Goal Code) are required.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish database connection")
         cursor = conn.cursor()
-        
-        # Verify the course exists for this degree
+
+        # Check if the course is associated with the degree
         cursor.execute("""
             SELECT 1 FROM Course_Degree 
             WHERE courseNumber = %s AND degreeID = %s
         """, (course_number, degree_id))
-        
         if not cursor.fetchone():
-            raise ValueError("Course must be associated with degree first")
-            
-        # Create association via Evaluation table with default values
+            raise ValueError("The course must first be associated with the degree.")
+
+        # Insert the association
+        cursor.execute("""
+            INSERT INTO Goal (goalCode, degreeID, description)
+            SELECT %s, %s, ''
+            WHERE NOT EXISTS (
+                SELECT 1 FROM Goal
+                WHERE goalCode = %s AND degreeID = %s
+            )
+        """, (goal_code, degree_id, goal_code, degree_id))
+
         cursor.execute("""
             INSERT INTO Evaluation (courseNumber, sectionID, year, term, degreeID, goalCode)
             SELECT DISTINCT s.courseNumber, s.sectionID, s.year, s.term, %s, %s
             FROM Section s
             WHERE s.courseNumber = %s
         """, (degree_id, goal_code, course_number))
-        
+
         conn.commit()
-        messagebox.showinfo("Success", "Course-Goal association added successfully")
+        messagebox.showinfo("Success", "Course-Goal association added successfully.")
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
+        # Handle database errors
         messagebox.showerror("Database Error", f"Failed to associate course with goal: {str(e)}")
     finally:
         if conn:
@@ -301,32 +443,55 @@ def get_available_courses_for_semester(year, term):
         if conn:
             conn.close()
 
-def add_course_to_semester(course_number, section_id, year, term, instructor_id, enrollment_count=0):
-    """Add a course section to a semester."""
+def get_available_courses_for_semester(year, term):
+    """
+    Get a list of available courses for a specific semester.
+
+    Parameters:
+        year (str): The year of the semester.
+        term (str): The term of the semester (e.g., Spring, Summer, Fall).
+
+    Returns:
+        List[Tuple]: A list of available courses (courseNumber, name).
+    """
+    # Ensure both fields are provided
+    if not year.strip() or not term.strip():
+        messagebox.showerror("Input Error", "Both fields (Year and Term) are required.")
+        return []
+
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
-            raise ConnectionError("Failed to establish database connection")
+            raise ConnectionError("Failed to establish database connection.")
         cursor = conn.cursor()
-        
-        # Ensure semester exists
+
+        # Validate year is a four-digit number
+        if not year.isdigit() or len(year) != 4:
+            raise ValueError("Year must be a valid 4-digit number.")
+
+        # Validate term is one of the allowed values
+        valid_terms = ['Spring', 'Summer', 'Fall']
+        if term not in valid_terms:
+            raise ValueError(f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
+
         cursor.execute("""
-            INSERT IGNORE INTO Semester (year, term) 
-            VALUES (%s, %s)
+            SELECT DISTINCT c.courseNumber, c.name 
+            FROM Course c 
+            JOIN Section s ON c.courseNumber = s.courseNumber
+            WHERE s.year = %s AND s.term = %s
+            ORDER BY c.courseNumber
         """, (year, term))
-        
-        # Add section
-        cursor.execute("""
-            INSERT INTO Section 
-            (courseNumber, sectionID, year, term, instructorID, enrollmentCount)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (course_number, section_id, year, term, instructor_id, enrollment_count))
-        
-        conn.commit()
-        messagebox.showinfo("Success", "Course section added to semester successfully")
+        results = cursor.fetchall()
+        return results
+    except ValueError as ve:
+        # Handle validation errors
+        messagebox.showerror("Validation Error", f"{ve}")
+        return []
     except mysql.connector.Error as e:
-        messagebox.showerror("Database Error", f"Failed to add course to semester: {str(e)}")
+        # Handle database errors
+        messagebox.showerror("Database Error", f"Failed to fetch available courses: {str(e)}")
+        return []
     finally:
         if conn:
             conn.close()
