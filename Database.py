@@ -130,15 +130,21 @@ def add_degree(degree_id, name, level):
         """, (degree_id, name, level))
         conn.commit()
         messagebox.showinfo("Success", "Degree added successfully.")
+    except mysql.connector.IntegrityError as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            messagebox.showerror("Database Error", "A degree with the same name and level already exists.")
+        else:
+            messagebox.showerror("Database Error", f"Failed to add degree: {str(e)}")
     except ValueError as ve:
         # Handle validation errors for the level
         messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
-        # Handle database errors
+        # Handle other database errors
         messagebox.showerror("Database Error", f"Failed to add degree: {str(e)}")
     finally:
         if conn:
             conn.close()
+
 
 
 def add_course(course_number, name):
@@ -1205,10 +1211,12 @@ def gui():
     eval_ent_instructor = ttk.Entry(eval_entry_frame)
     eval_ent_instructor.grid(row=2, column=1, padx=5, pady=5)
 
-    eval_sections_tree = ttk.Treeview(eval_entry_frame, columns=("CourseNumber","SectionID","Enrollment"), show='headings')
+    # Status column
+    eval_sections_tree = ttk.Treeview(eval_entry_frame, columns=("CourseNumber","SectionID","Enrollment","Status"), show='headings')
     eval_sections_tree.heading("CourseNumber", text="Course Number")
     eval_sections_tree.heading("SectionID", text="Section ID")
     eval_sections_tree.heading("Enrollment", text="Enrollment")
+    eval_sections_tree.heading("Status", text="Status")
     eval_sections_tree.grid(row=4, column=0, columnspan=2, sticky='nsew')
 
     def handle_list_instructor_sections():
@@ -1218,8 +1226,14 @@ def gui():
         term = eval_ent_term.get()
         instr = eval_ent_instructor.get()
         sections = get_sections_for_instructor(year, term, instr)
+
+        # Get the evaluation status for this semester
+        all_status = get_evaluation_status_for_semester(year, term)
+        status_map = {(x['courseNumber'], x['sectionID']): x['status'] for x in all_status}
+
         for s in sections:
-            eval_sections_tree.insert('', 'end', values=(s['courseNumber'], s['sectionID'], s['enrollmentCount']))
+            sec_status = status_map.get((s['courseNumber'], s['sectionID']), "No Evaluation Entered")
+            eval_sections_tree.insert('', 'end', values=(s['courseNumber'], s['sectionID'], s['enrollmentCount'], sec_status))
 
     ttk.Button(eval_entry_frame, text="List Sections", command=handle_list_instructor_sections).grid(row=3, column=0, columnspan=2, pady=10)
 
@@ -1257,13 +1271,58 @@ def gui():
     eval_improve = ttk.Entry(eval_entry_frame)
     eval_improve.grid(row=13, column=1, padx=5, pady=5)
 
+    # ADD the on_section_selected function from user's code
+    def on_section_selected():
+        sel = eval_sections_tree.selection()
+        if not sel:
+            return
+        vals = eval_sections_tree.item(sel[0], 'values')
+        courseNumber, sectionID, enrollmentCount_str, currentStatus = vals
+        year = eval_ent_year.get()
+        term = eval_ent_term.get()
+
+        evaluations = get_evaluations_for_section(courseNumber, sectionID, year, term)
+
+        # Clear fields first
+        eval_deg_id.delete(0, tk.END)
+        eval_goal_code.delete(0, tk.END)
+        eval_type.delete(0, tk.END)
+        eval_A.delete(0, tk.END)
+        eval_B.delete(0, tk.END)
+        eval_C.delete(0, tk.END)
+        eval_F.delete(0, tk.END)
+        eval_improve.delete(0, tk.END)
+
+        if not evaluations:
+            # No evaluation entered yet
+            return
+
+        # Take the first evaluation record as an example
+        eval_data = evaluations[0]
+        eval_deg_id.insert(0, eval_data['degreeID'])
+        eval_goal_code.insert(0, eval_data['goalCode'])
+        if eval_data['evaluationType'] is not None:
+            eval_type.insert(0, eval_data['evaluationType'])
+
+        eval_A.insert(0, eval_data['gradeCountA'] if eval_data['gradeCountA'] is not None else 0)
+        eval_B.insert(0, eval_data['gradeCountB'] if eval_data['gradeCountB'] is not None else 0)
+        eval_C.insert(0, eval_data['gradeCountC'] if eval_data['gradeCountC'] is not None else 0)
+        eval_F.insert(0, eval_data['gradeCountF'] if eval_data['gradeCountF'] is not None else 0)
+        if eval_data['improvementNote'] is not None:
+            eval_improve.insert(0, eval_data['improvementNote'])
+
+    eval_sections_tree.bind("<<TreeviewSelect>>", lambda e: on_section_selected())
+
+    # Use the handle_update_evaluation logic from user's code
     def handle_update_evaluation():
         sel = eval_sections_tree.selection()
         if not sel:
             messagebox.showerror("Error", "No section selected.")
             return
         vals = eval_sections_tree.item(sel[0], 'values')
-        courseNumber, sectionID, _ = vals
+        # vals = (courseNumber, sectionID, enrollmentCount, status)
+        courseNumber, sectionID, enrollmentCount_str, currentStatus = vals
+        enrollmentCount = int(enrollmentCount_str)
         year = eval_ent_year.get()
         term = eval_ent_term.get()
         degreeID = eval_deg_id.get()
@@ -1275,8 +1334,32 @@ def gui():
         gradeF = int(eval_F.get() or 0)
         improvementNote = eval_improve.get()
 
+        # Ensure A+B+C+F = enrollmentCount
+        total_grades = gradeA + gradeB + gradeC + gradeF
+        if total_grades != enrollmentCount:
+            messagebox.showerror("Validation Error", "The sum of A, B, C, and F grades must equal the enrollment count.")
+            return
+
+        # Update the evaluation for this degree
         update_evaluation(courseNumber, sectionID, year, term, degreeID, goalCode, evaluationType, gradeA, gradeB, gradeC, gradeF, improvementNote)
         messagebox.showinfo("Success", "Evaluation updated.")
+
+        # Duplication for other degrees
+        degrees = get_degrees_for_course(courseNumber)
+        other_degrees = [d for d in degrees if d['degreeID'] != degreeID]
+
+        if other_degrees:
+            ans = messagebox.askyesno("Duplicate Evaluation", "This course is associated with other degrees. Duplicate this evaluation?")
+            if ans:
+                for d in other_degrees:
+                    update_evaluation(courseNumber, sectionID, year, term, d['degreeID'], goalCode, evaluationType, gradeA, gradeB, gradeC, gradeF, improvementNote)
+                messagebox.showinfo("Success", "Evaluation duplicated across all associated degrees.")
+
+        # Refresh the status of this row in the treeview
+        all_status = get_evaluation_status_for_semester(year, term)
+        status_map = {(x['courseNumber'], x['sectionID']): x['status'] for x in all_status}
+        new_status = status_map.get((courseNumber, sectionID), "No Evaluation Entered")
+        eval_sections_tree.item(sel[0], values=(courseNumber, sectionID, enrollmentCount, new_status))
 
     ttk.Button(eval_entry_frame, text="Update Evaluation", command=handle_update_evaluation).grid(row=14, column=0, columnspan=2, pady=10)
 
