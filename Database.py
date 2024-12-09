@@ -269,10 +269,17 @@ def add_goal(goal_code, degree_id, description):
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
 
-        # Validate goal code is exactly 4 characters
-        if len(goal_code) != 4:
-            raise ValueError("Goal code must be exactly 4 characters.")
+        import re
+        if not re.match(r"^[A-Za-z]\d{3}$", goal_code):
+            raise ValueError("Goal code must be any single character followed by 3 positive numbers.")
 
+        # Check if the degree ID exists
+        cursor.execute("SELECT 1 FROM Degree WHERE degreeID = %s", (degree_id,))
+        if cursor.fetchone() is None:
+            messagebox.showerror("Validation Error", f"No matching Degree ID found for: {degree_id}")
+            return
+
+        # Insert the goal
         cursor.execute("""
             INSERT INTO Goal (goalCode, degreeID, description)
             VALUES (%s, %s, %s)
