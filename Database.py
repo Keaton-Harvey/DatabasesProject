@@ -96,6 +96,11 @@ def add_degree(degree_id, name, level):
         messagebox.showerror("Input Error", "All fields (Degree ID, Name, and Level) are required.")
         return
 
+    # Validate degree name contains only alphabetic characters
+    if not name.isalpha():
+        messagebox.showerror("Validation Error", "Degree name must contain only alphabetic characters.")
+        return
+
     conn = None
     try:
         conn = connect_to_db()
@@ -139,6 +144,11 @@ def add_course(course_number, name):
     # Ensure both fields are provided
     if not course_number.strip() or not name.strip():
         messagebox.showerror("Input Error", "Both fields (Course Number and Name) are required.")
+        return
+
+    # Validate course name contains only alphabetic characters
+    if not name.isalpha():
+        messagebox.showerror("Validation Error", "Course name must contain only alphabetic characters.")
         return
 
     conn = None
