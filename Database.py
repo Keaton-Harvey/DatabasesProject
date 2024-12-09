@@ -6,22 +6,42 @@ from tkinter import ttk, messagebox
 
 # Database connection setup
 def connect_to_db(run_schema=False):
-    """Establish connection to the database."""
+    """Establish connection to the database, creating it if necessary."""
     try:
+        # Connect without specifying the database
         conn = mysql.connector.connect(
             host="localhost",
             user="cs5330",
             password="pw5330",
-            database="university",  # Specify the database to avoid re-creating it
             charset='utf8mb4'
         )
+        cursor = conn.cursor()
 
+        # Try to select the 'university' database
+        try:
+            cursor.execute("USE university;")
+        except mysql.connector.Error as err:
+            if err.errno == errorcode.ER_BAD_DB_ERROR:
+                print("Database 'university' not found. Creating it...")
+                cursor.execute("CREATE DATABASE university;")
+                cursor.execute("USE university;")
+                
+                # After creating the database, run the schema
+                print("Executing schema file to create tables...")
+                schema_path = os.path.join(os.path.dirname(__file__), 'UniversitySchema.sql')
+                execute_schema_file(conn, schema_path)
+            else:
+                # Some other error
+                raise
+
+        # If run_schema is True, we explicitly run the schema again to ensure tables exist
+        # (For example, to re-create tables if needed)
         if run_schema:
-            print("Executing schema file...")
             schema_path = os.path.join(os.path.dirname(__file__), 'UniversitySchema.sql')
             execute_schema_file(conn, schema_path)
 
         return conn
+
     except mysql.connector.Error as err:
         print(f"Database Error: {err}")
         return None
