@@ -76,22 +76,6 @@ def handle_mysql_error(err):
     else:
         print(f"MySQL Error: {err}")
 
-import mysql.connector
-from tkinter import messagebox
-
-def connect_to_db():
-    try:
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="cs5330",
-            password="pw5330",
-            database="university"
-        )
-        return conn
-    except mysql.connector.Error as e:
-        messagebox.showerror("Database Error", f"Failed to connect to database: {str(e)}")
-        return None
-
 # Basic record addition functions
 def add_degree(degree_id, name, level):
     """Add a new degree program."""
@@ -997,5 +981,11 @@ def gui():
         
 # Main section
 if __name__ == "__main__":
-    gui()
-
+    # Initialize database first
+    initial_conn = connect_to_db()
+    if initial_conn:
+        initial_conn.close()
+        # Start GUI
+        gui()
+    else:
+        print("Failed to initialize database. Please check your MySQL connection.")
