@@ -88,6 +88,7 @@ def handle_mysql_error(err):
 
 # Basic record addition functions
 def add_degree(degree_id, name, level):
+    import re
     """
     Add a new degree program.
     """
@@ -95,10 +96,10 @@ def add_degree(degree_id, name, level):
     if not degree_id.strip() or not name.strip() or not level.strip():
         messagebox.showerror("Input Error", "All fields (Degree ID, Name, and Level) are required.")
         return
-
-    # Validate degree name contains only alphabetic characters
-    if not name.isalpha():
-        messagebox.showerror("Validation Error", "Degree name must contain only alphabetic characters.")
+    
+    # Validate degree name contains only alphabetic characters and spaces
+    if not re.match(r'^[A-Za-z\s]+$', name):
+        messagebox.showerror("Validation Error", "Degree name must contain only alphabetic characters and spaces.")
         return
 
     conn = None
@@ -129,8 +130,8 @@ def add_degree(degree_id, name, level):
         if conn:
             conn.close()
 
-
 def add_course(course_number, name):
+    import re
     """
     Add a new course to the database.
 
@@ -145,10 +146,10 @@ def add_course(course_number, name):
     if not course_number.strip() or not name.strip():
         messagebox.showerror("Input Error", "Both fields (Course Number and Name) are required.")
         return
-
-    # Validate course name contains only alphabetic characters
-    if not name.isalpha():
-        messagebox.showerror("Validation Error", "Course name must contain only alphabetic characters.")
+    
+    # Validate course name contains only alphabetic characters and spaces
+    if not re.match(r'^[A-Za-z\s]+$', name):
+        messagebox.showerror("Validation Error", "Course name must contain only alphabetic characters and spaces.")
         return
 
     conn = None
@@ -159,7 +160,6 @@ def add_course(course_number, name):
         cursor = conn.cursor()
 
         # Validate course number format (2-4 letters + 4 digits)
-        import re
         if not re.match(r'^[A-Z]{2,4}\d{4}$', course_number):
             raise ValueError("Course number must be 2-4 uppercase letters followed by 4 digits.")
 
@@ -178,7 +178,6 @@ def add_course(course_number, name):
     finally:
         if conn:
             conn.close()
-
 
 def add_instructor(instructor_id, name):
     """
