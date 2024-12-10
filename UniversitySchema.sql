@@ -5,8 +5,9 @@ USE university;
 CREATE TABLE IF NOT EXISTS Degree (
     degreeID VARCHAR(10) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    level ENUM('BA', 'BS', 'MS', 'Ph.D.', 'Cert') NOT NULL,
-    UNIQUE (name, level) -- Ensure unique combinations of name and level
+    level VARCHAR(10) NOT NULL,  -- Changed from ENUM to VARCHAR(10)
+    CONSTRAINT unique_name_level UNIQUE (name, level),  -- Named constraint for uniqueness
+    CONSTRAINT valid_level CHECK (level IN ('BA', 'BS', 'MS', 'Ph.D.', 'Cert')) 
 );
 
 CREATE TABLE IF NOT EXISTS Course (
