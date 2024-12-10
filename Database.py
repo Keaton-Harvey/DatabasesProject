@@ -627,6 +627,21 @@ def add_course_to_semester(course_number, section_id, year, term, instructor_id,
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (course_number, section_id, year, term, instructor_id, enrollment_count))
 
+        conn.commit()   
+        cursor.execute("""
+            SELECT cd.degreeID, g.goalCode
+            FROM Course_Degree cd
+            JOIN Goal g ON cd.degreeID = g.degreeID
+            WHERE cd.courseNumber = %s
+        """, (course_number,))
+        degree_goals = cursor.fetchall()
+
+        # For each degree-goal pair, insert an Evaluation record if not already existing
+        for (deg_id, goal_code) in degree_goals:
+            cursor.execute("""
+                INSERT IGNORE INTO Evaluation (courseNumber, sectionID, year, term, degreeID, goalCode, gradeCountA, gradeCountB, gradeCountC, gradeCountF)
+                VALUES (%s, %s, %s, %s, %s, %s, 0,0,0,0)
+            """, (course_number, section_id, year, term, deg_id, goal_code))
         conn.commit()
         messagebox.showinfo("Success", "Course section added to semester successfully.")
     except ValueError as ve:
