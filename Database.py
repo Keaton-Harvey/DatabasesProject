@@ -211,16 +211,6 @@ def add_instructor(instructor_id, name):
     if not instructor_id.strip() or not name.strip():
         messagebox.showerror("Input Error", "Both fields (Instructor ID and Name) are required.")
         return
-    
-    # Validate degree_id is a positive integer
-    try:
-        instructor_id = int(instructor_id)  # Convert to integer for validation
-        if instructor_id <= 0:
-            messagebox.showerror("Validation Error", "Instructor ID must be a positive integer.")
-            return
-    except ValueError:
-        messagebox.showerror("Validation Error", "Instructor ID must be a positive integer.")
-        return
 
     conn = None
     try:
@@ -229,12 +219,15 @@ def add_instructor(instructor_id, name):
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
 
-        instructor_id = str(instructor_id)
+        # Ensure the input is validated as a string
+        if not isinstance(instructor_id, str):
+            instructor_id = str(instructor_id)
 
         # Validate instructor ID is exactly 8 numeric characters
         if not re.match(r'^\d{8}$', instructor_id):
             raise ValueError("Instructor ID must be exactly 8 numeric characters.")
 
+        # Insert into the database
         cursor.execute("""
             INSERT INTO Instructor (instructorID, name)
             VALUES (%s, %s)
@@ -250,6 +243,7 @@ def add_instructor(instructor_id, name):
     finally:
         if conn:
             conn.close()
+
 
 def add_goal(goal_code, degree_id, description):
     """
@@ -421,6 +415,23 @@ def add_section(course_number, section_id, year, term, instructor_id, enrollment
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (course_number, section_id, year, term, instructor_id, int(enrollment_count)))
         conn.commit()
+        cursor.execute("""
+                SELECT cd.degreeID, g.goalCode
+                FROM Course_Degree cd
+                JOIN Goal g ON cd.degreeID = g.degreeID
+                WHERE cd.courseNumber = %s
+            """, (course_number,))
+        degree_goals = cursor.fetchall()
+
+            # For each degree-goal pair, insert an Evaluation record if not already existing
+        for (deg_id, goal_code) in degree_goals:
+            cursor.execute("""
+                INSERT IGNORE INTO Evaluation (courseNumber, sectionID, year, term, degreeID, goalCode, gradeCountA, gradeCountB, gradeCountC, gradeCountF)
+                VALUES (%s, %s, %s, %s, %s, %s, 0,0,0,0)
+            """, (course_number, section_id, year, term, deg_id, goal_code))
+
+        conn.commit()
+
         messagebox.showinfo("Success", "Section added successfully.")
     except ValueError as ve:
         # Handle validation errors
