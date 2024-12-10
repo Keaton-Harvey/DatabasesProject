@@ -267,7 +267,9 @@ def add_goal(goal_code, degree_id, description):
     if not goal_code.strip() or not degree_id.strip() or not description.strip():
         messagebox.showerror("Input Error", "All fields (Goal Code, Degree ID, and Description) are required.")
         return
-
+    if len(goal_code) != 4:
+        messagebox.showerror("Validation Error", "Goal code must be exactly 4 characters.")
+        return
     conn = None
     try:
         conn = connect_to_db()
@@ -317,23 +319,19 @@ def add_semester(year, term):
     if not year.strip() or not term.strip():
         messagebox.showerror("Input Error", "Both fields (Year and Term) are required.")
         return
-
+    if not year.isdigit() or len(year) != 4:
+        messagebox.showerror("Validation Error", "Year must be a valid 4-digit number.")
+        return
+    valid_terms = ['Spring', 'Summer', 'Fall']
+    if term not in valid_terms:
+        messagebox.showerror("Validation Error", f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
+        return
     conn = None
     try:
         conn = connect_to_db()
         if not conn:
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
-
-        # Validate year is a four-digit number
-        if not year.isdigit() or len(year) != 4:
-            raise ValueError("Year must be a valid 4-digit number.")
-
-        # Validate term is one of the allowed values
-        valid_terms = ['Spring', 'Summer', 'Fall']
-        if term not in valid_terms:
-            raise ValueError(f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
-
         cursor.execute("""
             INSERT INTO Semester (year, term)
             VALUES (%s, %s)
@@ -369,7 +367,19 @@ def add_section(course_number, section_id, year, term, instructor_id, enrollment
     if not course_number.strip() or not section_id.strip() or not year.strip() or not term.strip() or not instructor_id.strip() or not enrollment_count.strip():
         messagebox.showerror("Input Error", "All fields are required to add a section.")
         return
-
+    if len(section_id) != 3:
+        messagebox.showerror("Validation Error", "Section ID must be exactly 3 characters.")
+        return
+    if not year.isdigit() or len(year) != 4:
+        messagebox.showerror("Validation Error", "Year must be a valid 4-digit number.")
+        return
+    valid_terms = ['Spring', 'Summer', 'Fall']
+    if term not in valid_terms:
+        messagebox.showerror("Validation Error", f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
+        return
+    if not enrollment_count.isdigit() or int(enrollment_count) < 0:
+        messagebox.showerror("Validation Error", "Enrollment count must be a non-negative integer.")
+        return
     conn = None
     try:
         conn = connect_to_db()
@@ -551,7 +561,16 @@ def add_course_to_semester(course_number, section_id, year, term, instructor_id,
     if not course_number.strip() or not section_id.strip() or not year.strip() or not term.strip() or not instructor_id.strip():
         messagebox.showerror("Input Error", "All fields (Course Number, Section ID, Year, Term, and Instructor ID) are required.")
         return
-
+    if not year.isdigit() or len(year) != 4:
+        messagebox.showerror("Validation Error", "Year must be a valid 4-digit number.")
+        return
+    valid_terms = ['Spring', 'Summer', 'Fall']
+    if term not in valid_terms:
+        messagebox.showerror("Validation Error", f"Invalid term. Must be one of: {', '.join(valid_terms)}.")
+        return
+    if not str(enrollment_count).isdigit() or int(enrollment_count) < 0:
+        messagebox.showerror("Validation Error", "Enrollment count must be a non-negative integer.")
+        return
     conn = None
     try:
         conn = connect_to_db()
@@ -669,7 +688,7 @@ def get_evaluation_status_for_semester(year, term):
         return []
     cursor = conn.cursor(dictionary=True)
     query = """
-    SELECT s.courseNumber, s.sectionID, s.year, s.term, 
+    SELECT s.courseNumber, s.sectionID, s.year, s.term,
            e.evaluationType, e.gradeCountA, e.gradeCountB, e.gradeCountC, e.gradeCountF, e.improvementNote
     FROM Section s
     LEFT JOIN Evaluation e 
@@ -677,34 +696,45 @@ def get_evaluation_status_for_semester(year, term):
      AND s.sectionID = e.sectionID 
      AND s.year = e.year 
      AND s.term = e.term
-    WHERE s.year = %s AND s.term = %s;
+    WHERE s.year = %s AND s.term = %s
+    ORDER BY s.courseNumber, s.sectionID;
     """
     cursor.execute(query, (year, term))
+    rows = cursor.fetchall()
+    conn.close()
+    section_info = {}
+    for row in rows:
+        key = (row['courseNumber'], row['sectionID'])
+        if key not in section_info:
+            section_info[key] = {
+                'hasEvaluation': False,
+                'hasGrades': False,
+                'hasImprovement': False
+            }
+        if row['evaluationType'] is not None or row['gradeCountA'] is not None:
+            section_info[key]['hasEvaluation'] = True
+        grades_sum = ((row['gradeCountA'] or 0) + (row['gradeCountB'] or 0) + (row['gradeCountC'] or 0) + (row['gradeCountF'] or 0))
+        if grades_sum > 0:
+            section_info[key]['hasGrades'] = True
+        if row['improvementNote'] and row['improvementNote'].strip():
+            section_info[key]['hasImprovement'] = True
     results = []
-    for row in cursor.fetchall():
-        if row['evaluationType'] is None and row['gradeCountA'] is None:
+    for (courseNumber, sectionID), info in section_info.items():
+        if not info['hasEvaluation'] and not info['hasGrades']:
             status = "No Evaluation Entered"
         else:
-            grades_sum = (row['gradeCountA'] or 0) + (row['gradeCountB'] or 0) + (row['gradeCountC'] or 0) + (row['gradeCountF'] or 0)
-            if row['evaluationType'] is not None:
-                if grades_sum > 0:
-                    if row['improvementNote']:
-                        status = "Fully Entered (With Improvement Note)"
-                    else:
-                        status = "Fully Entered (No Improvement Note)"
+            if info['hasEvaluation'] and info['hasGrades']:
+                if info['hasImprovement']:
+                    status = "Fully Entered (With Improvement Note)"
                 else:
-                    status = "Partially Entered"
+                    status = "Fully Entered (No Improvement Note)"
             else:
-                if grades_sum > 0:
-                    status = "Partially Entered"
-                else:
-                    status = "No Evaluation Entered"
+                status = "Partially Entered"
         results.append({
-            'courseNumber': row['courseNumber'],
-            'sectionID': row['sectionID'],
+            'courseNumber': courseNumber,
+            'sectionID': sectionID,
             'status': status
         })
-    conn.close()
     return results
 
 def get_sections_above_percentage(year, term, percentage):
@@ -899,129 +929,140 @@ def gui():
     root = tk.Tk()
     root.title("University Database")
 
-    # Create Notebook for tabs
+    # We will use a helper function to configure centering for frames
+    def configure_centering(frame):
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(3, weight=1)
+
     tabs = ttk.Notebook(root)
 
-    # Degree Tab
+    pad_y = 1
+    pad_x = 5
+
     degree_tab = ttk.Frame(tabs)
     tabs.add(degree_tab, text="Add Degree")
+    configure_centering(degree_tab)
 
-    ttk.Label(degree_tab, text="Degree ID:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(degree_tab, text="Degree ID:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     degree_id_entry = ttk.Entry(degree_tab)
-    degree_id_entry.grid(row=0, column=1, padx=5, pady=5)
+    degree_id_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(degree_tab, text="Name:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(degree_tab, text="Name:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     degree_name_entry = ttk.Entry(degree_tab)
-    degree_name_entry.grid(row=1, column=1, padx=5, pady=5)
+    degree_name_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(degree_tab, text="Level:").grid(row=2, column=0, padx=5, pady=5)
+    ttk.Label(degree_tab, text="Level:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     degree_level_entry = ttk.Entry(degree_tab)
-    degree_level_entry.grid(row=2, column=1, padx=5, pady=5)
+    degree_level_entry.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_degree():
         add_degree(degree_id_entry.get(), degree_name_entry.get(), degree_level_entry.get())
 
-    ttk.Button(degree_tab, text="Add Degree", command=handle_add_degree).grid(row=3, column=0, columnspan=2, pady=10)
+    ttk.Button(degree_tab, text="Add Degree", command=handle_add_degree).grid(row=3, column=1, columnspan=2, pady=10)
 
-    # Course Tab
     course_tab = ttk.Frame(tabs)
     tabs.add(course_tab, text="Add Course")
+    configure_centering(course_tab)
 
-    ttk.Label(course_tab, text="Course Number:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(course_tab, text="Course Number:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_number_entry = ttk.Entry(course_tab)
-    course_number_entry.grid(row=0, column=1, padx=5, pady=5)
+    course_number_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(course_tab, text="Course Name:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(course_tab, text="Course Name:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_name_entry = ttk.Entry(course_tab)
-    course_name_entry.grid(row=1, column=1, padx=5, pady=5)
+    course_name_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_course():
         add_course(course_number_entry.get(), course_name_entry.get())
 
-    ttk.Button(course_tab, text="Add Course", command=handle_add_course).grid(row=2, column=0, columnspan=2, pady=10)
+    ttk.Button(course_tab, text="Add Course", command=handle_add_course).grid(row=2, column=1, columnspan=2, pady=10)
 
     # Instructor Tab
     instructor_tab = ttk.Frame(tabs)
     tabs.add(instructor_tab, text="Add Instructor")
+    configure_centering(instructor_tab)
 
-    ttk.Label(instructor_tab, text="Instructor ID:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(instructor_tab, text="Instructor ID:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     instructor_id_entry = ttk.Entry(instructor_tab)
-    instructor_id_entry.grid(row=0, column=1, padx=5, pady=5)
+    instructor_id_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(instructor_tab, text="Instructor Name:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(instructor_tab, text="Instructor Name:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     instructor_name_entry = ttk.Entry(instructor_tab)
-    instructor_name_entry.grid(row=1, column=1, padx=5, pady=5)
+    instructor_name_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_instructor():
         add_instructor(instructor_id_entry.get(), instructor_name_entry.get())
 
-    ttk.Button(instructor_tab, text="Add Instructor", command=handle_add_instructor).grid(row=2, column=0, columnspan=2, pady=10)
+    ttk.Button(instructor_tab, text="Add Instructor", command=handle_add_instructor).grid(row=2, column=1, columnspan=2, pady=10)
 
     # Goal Tab
     goal_tab = ttk.Frame(tabs)
     tabs.add(goal_tab, text="Add Goal")
+    configure_centering(goal_tab)
 
-    ttk.Label(goal_tab, text="Goal Code:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(goal_tab, text="Goal Code:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     goal_code_entry = ttk.Entry(goal_tab)
-    goal_code_entry.grid(row=0, column=1, padx=5, pady=5)
+    goal_code_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(goal_tab, text="Degree ID:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(goal_tab, text="Degree ID:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     goal_degree_id_entry = ttk.Entry(goal_tab)
-    goal_degree_id_entry.grid(row=1, column=1, padx=5, pady=5)
+    goal_degree_id_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(goal_tab, text="Description:").grid(row=2, column=0, padx=5, pady=5)
+    ttk.Label(goal_tab, text="Description:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     goal_description_entry = ttk.Entry(goal_tab)
-    goal_description_entry.grid(row=2, column=1, padx=5, pady=5)
+    goal_description_entry.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_goal():
         add_goal(goal_code_entry.get(), goal_degree_id_entry.get(), goal_description_entry.get())
 
-    ttk.Button(goal_tab, text="Add Goal", command=handle_add_goal).grid(row=3, column=0, columnspan=2, pady=10)
+    ttk.Button(goal_tab, text="Add Goal", command=handle_add_goal).grid(row=3, column=1, columnspan=2, pady=10)
 
     # Semester Tab
     semester_tab = ttk.Frame(tabs)
     tabs.add(semester_tab, text="Add Semester")
+    configure_centering(semester_tab)
 
-    ttk.Label(semester_tab, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(semester_tab, text="Year:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_year_entry = ttk.Entry(semester_tab)
-    semester_year_entry.grid(row=0, column=1, padx=5, pady=5)
+    semester_year_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(semester_tab, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(semester_tab, text="Term:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_term_entry = ttk.Entry(semester_tab)
-    semester_term_entry.grid(row=1, column=1, padx=5, pady=5)
+    semester_term_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_semester():
         add_semester(semester_year_entry.get(), semester_term_entry.get())
 
-    ttk.Button(semester_tab, text="Add Semester", command=handle_add_semester).grid(row=2, column=0, columnspan=2, pady=10)
+    ttk.Button(semester_tab, text="Add Semester", command=handle_add_semester).grid(row=2, column=1, columnspan=2, pady=10)
 
     # Section Tab
     section_tab = ttk.Frame(tabs)
     tabs.add(section_tab, text="Add Section")
+    configure_centering(section_tab)
 
-    ttk.Label(section_tab, text="Course Number:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(section_tab, text="Course Number:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     section_course_number_entry = ttk.Entry(section_tab)
-    section_course_number_entry.grid(row=0, column=1, padx=5, pady=5)
+    section_course_number_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(section_tab, text="Section ID:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(section_tab, text="Section ID:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     section_id_entry = ttk.Entry(section_tab)
-    section_id_entry.grid(row=1, column=1, padx=5, pady=5)
+    section_id_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(section_tab, text="Year:").grid(row=2, column=0, padx=5, pady=5)
+    ttk.Label(section_tab, text="Year:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     section_year_entry = ttk.Entry(section_tab)
-    section_year_entry.grid(row=2, column=1, padx=5, pady=5)
+    section_year_entry.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(section_tab, text="Term:").grid(row=3, column=0, padx=5, pady=5)
+    ttk.Label(section_tab, text="Term:").grid(row=3, column=1, padx=pad_x, pady=pad_y, sticky='e')
     section_term_entry = ttk.Entry(section_tab)
-    section_term_entry.grid(row=3, column=1, padx=5, pady=5)
+    section_term_entry.grid(row=3, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(section_tab, text="Instructor ID:").grid(row=4, column=0, padx=5, pady=5)
+    ttk.Label(section_tab, text="Instructor ID:").grid(row=4, column=1, padx=pad_x, pady=pad_y, sticky='e')
     section_instructor_id_entry = ttk.Entry(section_tab)
-    section_instructor_id_entry.grid(row=4, column=1, padx=5, pady=5)
+    section_instructor_id_entry.grid(row=4, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(section_tab, text="Enrollment Count:").grid(row=5, column=0, padx=5, pady=5)
+    ttk.Label(section_tab, text="Enrollment Count:").grid(row=5, column=1, padx=pad_x, pady=pad_y, sticky='e')
     section_enrollment_count_entry = ttk.Entry(section_tab)
-    section_enrollment_count_entry.grid(row=5, column=1, padx=5, pady=5)
+    section_enrollment_count_entry.grid(row=5, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_section():
         add_section(
@@ -1033,23 +1074,24 @@ def gui():
             section_enrollment_count_entry.get()
         )
 
-    ttk.Button(section_tab, text="Add Section", command=handle_add_section).grid(row=6, column=0, columnspan=2, pady=10)
+    ttk.Button(section_tab, text="Add Section", command=handle_add_section).grid(row=6, column=1, columnspan=2, pady=10)
 
     # Course-Degree Association Tab
     course_degree_tab = ttk.Frame(tabs)
     tabs.add(course_degree_tab, text="Associate Course to Degree")
+    configure_centering(course_degree_tab)
 
-    ttk.Label(course_degree_tab, text="Course Number:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(course_degree_tab, text="Course Number:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_degree_course_number_entry = ttk.Entry(course_degree_tab)
-    course_degree_course_number_entry.grid(row=0, column=1, padx=5, pady=5)
+    course_degree_course_number_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(course_degree_tab, text="Degree ID:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(course_degree_tab, text="Degree ID:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_degree_degree_id_entry = ttk.Entry(course_degree_tab)
-    course_degree_degree_id_entry.grid(row=1, column=1, padx=5, pady=5)
+    course_degree_degree_id_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(course_degree_tab, text="Is Core (1=True, 0=False):").grid(row=2, column=0, padx=5, pady=5)
+    ttk.Label(course_degree_tab, text="Is Core (1=True, 0=False):").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_degree_is_core_entry = ttk.Entry(course_degree_tab)
-    course_degree_is_core_entry.grid(row=2, column=1, padx=5, pady=5)
+    course_degree_is_core_entry.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     def handle_add_course_degree():
         add_course_degree(
@@ -1058,62 +1100,64 @@ def gui():
             int(course_degree_is_core_entry.get())
         )
 
-    ttk.Button(course_degree_tab, text="Add Association", command=handle_add_course_degree).grid(row=3, column=0, columnspan=2, pady=10)
+    ttk.Button(course_degree_tab, text="Add Association", command=handle_add_course_degree).grid(row=3, column=1, columnspan=2, pady=10)
 
 
     # Course-Goal Association Tab
     course_goal_tab = ttk.Frame(tabs)
     tabs.add(course_goal_tab, text="Associate Course with Goal")
-    
-    ttk.Label(course_goal_tab, text="Course Number:").grid(row=0, column=0, padx=5, pady=5)
+    configure_centering(course_goal_tab)
+
+    ttk.Label(course_goal_tab, text="Course Number:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_goal_course_number = ttk.Entry(course_goal_tab)
-    course_goal_course_number.grid(row=0, column=1, padx=5, pady=5)
-    
-    ttk.Label(course_goal_tab, text="Degree ID:").grid(row=1, column=0, padx=5, pady=5)
+    course_goal_course_number.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(course_goal_tab, text="Degree ID:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_goal_degree_id = ttk.Entry(course_goal_tab)
-    course_goal_degree_id.grid(row=1, column=1, padx=5, pady=5)
-    
-    ttk.Label(course_goal_tab, text="Goal Code:").grid(row=2, column=0, padx=5, pady=5)
+    course_goal_degree_id.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(course_goal_tab, text="Goal Code:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     course_goal_code = ttk.Entry(course_goal_tab)
-    course_goal_code.grid(row=2, column=1, padx=5, pady=5)
-    
+    course_goal_code.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
     def handle_associate_course_goal():
         associate_course_with_goal(
             course_goal_course_number.get(),
             course_goal_degree_id.get(),
             course_goal_code.get()
         )
-    
-    ttk.Button(course_goal_tab, text="Associate", command=handle_associate_course_goal).grid(row=3, column=0, columnspan=2, pady=10)
+
+    ttk.Button(course_goal_tab, text="Associate", command=handle_associate_course_goal).grid(row=3, column=1, columnspan=2, pady=10)
 
     # Semester Course Entry Tab
     semester_course_tab = ttk.Frame(tabs)
     tabs.add(semester_course_tab, text="Add Course to Semester")
-    
-    ttk.Label(semester_course_tab, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    configure_centering(semester_course_tab)
+
+    ttk.Label(semester_course_tab, text="Year:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_course_year = ttk.Entry(semester_course_tab)
-    semester_course_year.grid(row=0, column=1, padx=5, pady=5)
-    
-    ttk.Label(semester_course_tab, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    semester_course_year.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(semester_course_tab, text="Term:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_course_term = ttk.Combobox(semester_course_tab, values=['Spring', 'Summer', 'Fall'])
-    semester_course_term.grid(row=1, column=1, padx=5, pady=5)
-    
-    ttk.Label(semester_course_tab, text="Course Number:").grid(row=2, column=0, padx=5, pady=5)
+    semester_course_term.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(semester_course_tab, text="Course Number:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_course_number = ttk.Entry(semester_course_tab)
-    semester_course_number.grid(row=2, column=1, padx=5, pady=5)
-    
-    ttk.Label(semester_course_tab, text="Section ID:").grid(row=3, column=0, padx=5, pady=5)
+    semester_course_number.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(semester_course_tab, text="Section ID:").grid(row=3, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_section_id = ttk.Entry(semester_course_tab)
-    semester_section_id.grid(row=3, column=1, padx=5, pady=5)
-    
-    ttk.Label(semester_course_tab, text="Instructor ID:").grid(row=4, column=0, padx=5, pady=5)
+    semester_section_id.grid(row=3, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(semester_course_tab, text="Instructor ID:").grid(row=4, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_instructor_id = ttk.Entry(semester_course_tab)
-    semester_instructor_id.grid(row=4, column=1, padx=5, pady=5)
-    
-    ttk.Label(semester_course_tab, text="Enrollment Count:").grid(row=5, column=0, padx=5, pady=5)
+    semester_instructor_id.grid(row=4, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(semester_course_tab, text="Enrollment Count:").grid(row=5, column=1, padx=pad_x, pady=pad_y, sticky='e')
     semester_enrollment_count = ttk.Entry(semester_course_tab)
-    semester_enrollment_count.grid(row=5, column=1, padx=5, pady=5)
-    
+    semester_enrollment_count.grid(row=5, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
     def handle_add_course_to_semester():
         add_course_to_semester(
             semester_course_number.get(),
@@ -1123,31 +1167,40 @@ def gui():
             semester_instructor_id.get(),
             semester_enrollment_count.get() or 0
         )
-    
-    ttk.Button(semester_course_tab, text="Add to Semester", command=handle_add_course_to_semester).grid(row=6, column=0, columnspan=2, pady=10)
+
+    ttk.Button(semester_course_tab, text="Add to Semester", command=handle_add_course_to_semester).grid(row=6, column=1, columnspan=2, pady=10)
 
     queries_tab = ttk.Frame(tabs)
     tabs.add(queries_tab, text="Queries & Evaluations")
 
     query_notebook = ttk.Notebook(queries_tab)
-    query_notebook.pack(expand=1, fill="both", padx=10, pady=10)
+    query_notebook.pack(expand=1, fill="both")
 
+     # Apply same centering to query subtabs
     eval_status_frame = ttk.Frame(query_notebook)
     query_notebook.add(eval_status_frame, text="Evaluation Status by Semester")
+    configure_centering(eval_status_frame)
 
-    ttk.Label(eval_status_frame, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(eval_status_frame, text="Year:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_status_year_entry = ttk.Entry(eval_status_frame)
-    eval_status_year_entry.grid(row=0, column=1, padx=5, pady=5)
+    eval_status_year_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_status_frame, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(eval_status_frame, text="Term:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_status_term_entry = ttk.Entry(eval_status_frame)
-    eval_status_term_entry.grid(row=1, column=1, padx=5, pady=5)
+    eval_status_term_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     eval_status_tree = ttk.Treeview(eval_status_frame, columns=("CourseNumber","SectionID","Status"), show='headings')
     eval_status_tree.heading("CourseNumber", text="Course Number")
     eval_status_tree.heading("SectionID", text="Section ID")
     eval_status_tree.heading("Status", text="Evaluation Status")
-    eval_status_tree.grid(row=3, column=0, columnspan=2, sticky='nsew')
+    eval_status_tree.grid(row=3, column=1, columnspan=2, sticky='nsew')
+    eval_status_frame.grid_rowconfigure(3, weight=1)
+    eval_status_frame.grid_columnconfigure(0, weight=1)
+    eval_status_frame.grid_columnconfigure(3, weight=1)
+
+    eval_status_tree.column("CourseNumber", width=120)
+    eval_status_tree.column("SectionID", width=80)
+    eval_status_tree.column("Status", width=300)
 
     def handle_eval_status_query():
         for i in eval_status_tree.get_children():
@@ -1158,29 +1211,38 @@ def gui():
         for r in results:
             eval_status_tree.insert('', 'end', values=(r['courseNumber'], r['sectionID'], r['status']))
 
-    ttk.Button(eval_status_frame, text="Get Evaluation Status", command=handle_eval_status_query).grid(row=2, column=0, columnspan=2, pady=10)
+    ttk.Button(eval_status_frame, text="Get Evaluation Status", command=handle_eval_status_query).grid(row=2, column=1, columnspan=2, pady=10)
 
     percentage_frame = ttk.Frame(query_notebook)
     query_notebook.add(percentage_frame, text="Sections Above Percentage")
+    configure_centering(percentage_frame)
 
-    ttk.Label(percentage_frame, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(percentage_frame, text="Year:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     pct_year_entry = ttk.Entry(percentage_frame)
-    pct_year_entry.grid(row=0, column=1, padx=5, pady=5)
+    pct_year_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(percentage_frame, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(percentage_frame, text="Term:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     pct_term_entry = ttk.Entry(percentage_frame)
-    pct_term_entry.grid(row=1, column=1, padx=5, pady=5)
+    pct_term_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(percentage_frame, text="Percentage:").grid(row=2, column=0, padx=5, pady=5)
+    ttk.Label(percentage_frame, text="Percentage:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     pct_entry = ttk.Entry(percentage_frame)
-    pct_entry.grid(row=2, column=1, padx=5, pady=5)
+    pct_entry.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     pct_tree = ttk.Treeview(percentage_frame, columns=("CourseNumber","SectionID","EnrollmentCount","PassCount"), show='headings')
     pct_tree.heading("CourseNumber", text="Course Number")
     pct_tree.heading("SectionID", text="Section ID")
     pct_tree.heading("EnrollmentCount", text="Enrollment")
     pct_tree.heading("PassCount", text="A+B+C Count")
-    pct_tree.grid(row=4, column=0, columnspan=2, sticky='nsew')
+    pct_tree.grid(row=4, column=1, columnspan=2, sticky='nsew')
+    percentage_frame.grid_rowconfigure(4, weight=1)
+    percentage_frame.grid_columnconfigure(0, weight=1)
+    percentage_frame.grid_columnconfigure(3, weight=1)
+
+    pct_tree.column("CourseNumber", width=120)
+    pct_tree.column("SectionID", width=80)
+    pct_tree.column("EnrollmentCount", width=100)
+    pct_tree.column("PassCount", width=100)
 
     def handle_pct_query():
         for i in pct_tree.get_children():
@@ -1192,22 +1254,23 @@ def gui():
         for r in results:
             pct_tree.insert('', 'end', values=(r['courseNumber'], r['sectionID'], r['enrollmentCount'], r['passCount']))
 
-    ttk.Button(percentage_frame, text="Get Sections", command=handle_pct_query).grid(row=3, column=0, columnspan=2, pady=10)
+    ttk.Button(percentage_frame, text="Get Sections", command=handle_pct_query).grid(row=3, column=1, columnspan=2, pady=10)
 
     eval_entry_frame = ttk.Frame(query_notebook)
     query_notebook.add(eval_entry_frame, text="Enter/Update Evaluations")
+    configure_centering(eval_entry_frame)
 
-    ttk.Label(eval_entry_frame, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Year:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_ent_year = ttk.Entry(eval_entry_frame)
-    eval_ent_year.grid(row=0, column=1, padx=5, pady=5)
+    eval_ent_year.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Term:").grid(row=1, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Term:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_ent_term = ttk.Entry(eval_entry_frame)
-    eval_ent_term.grid(row=1, column=1, padx=5, pady=5)
+    eval_ent_term.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Instructor ID:").grid(row=2, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Instructor ID:").grid(row=2, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_ent_instructor = ttk.Entry(eval_entry_frame)
-    eval_ent_instructor.grid(row=2, column=1, padx=5, pady=5)
+    eval_ent_instructor.grid(row=2, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     # Status column
     eval_sections_tree = ttk.Treeview(eval_entry_frame, columns=("CourseNumber","SectionID","Enrollment","Status"), show='headings')
@@ -1215,7 +1278,15 @@ def gui():
     eval_sections_tree.heading("SectionID", text="Section ID")
     eval_sections_tree.heading("Enrollment", text="Enrollment")
     eval_sections_tree.heading("Status", text="Status")
-    eval_sections_tree.grid(row=4, column=0, columnspan=2, sticky='nsew')
+    eval_sections_tree.grid(row=4, column=1, columnspan=2, sticky='nsew')
+    eval_entry_frame.grid_rowconfigure(4, weight=1)
+    eval_entry_frame.grid_columnconfigure(0, weight=1)
+    eval_entry_frame.grid_columnconfigure(3, weight=1)
+
+    eval_sections_tree.column("CourseNumber", width=120)
+    eval_sections_tree.column("SectionID", width=80)
+    eval_sections_tree.column("Enrollment", width=100)
+    eval_sections_tree.column("Status", width=300)
 
     def handle_list_instructor_sections():
         for i in eval_sections_tree.get_children():
@@ -1233,41 +1304,41 @@ def gui():
             sec_status = status_map.get((s['courseNumber'], s['sectionID']), "No Evaluation Entered")
             eval_sections_tree.insert('', 'end', values=(s['courseNumber'], s['sectionID'], s['enrollmentCount'], sec_status))
 
-    ttk.Button(eval_entry_frame, text="List Sections", command=handle_list_instructor_sections).grid(row=3, column=0, columnspan=2, pady=10)
+    ttk.Button(eval_entry_frame, text="List Sections", command=handle_list_instructor_sections).grid(row=3, column=1, columnspan=2, pady=10)
 
-    ttk.Label(eval_entry_frame, text="Select Section and Enter New/Update Evaluations Below:").grid(row=5, column=0, columnspan=2)
+    ttk.Label(eval_entry_frame, text="Select Section and Enter New/Update Evaluations Below:").grid(row=5, column=1, columnspan=2)
 
-    ttk.Label(eval_entry_frame, text="DegreeID:").grid(row=6, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="DegreeID:").grid(row=6, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_deg_id = ttk.Entry(eval_entry_frame)
-    eval_deg_id.grid(row=6, column=1, padx=5, pady=5)
+    eval_deg_id.grid(row=6, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="GoalCode:").grid(row=7, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="GoalCode:").grid(row=7, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_goal_code = ttk.Entry(eval_entry_frame)
-    eval_goal_code.grid(row=7, column=1, padx=5, pady=5)
+    eval_goal_code.grid(row=7, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Eval Type:").grid(row=8, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Eval Type:").grid(row=8, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_type = ttk.Entry(eval_entry_frame)
-    eval_type.grid(row=8, column=1, padx=5, pady=5)
+    eval_type.grid(row=8, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Grade A:").grid(row=9, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Grade A:").grid(row=9, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_A = ttk.Entry(eval_entry_frame)
-    eval_A.grid(row=9, column=1, padx=5, pady=5)
+    eval_A.grid(row=9, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Grade B:").grid(row=10, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Grade B:").grid(row=10, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_B = ttk.Entry(eval_entry_frame)
-    eval_B.grid(row=10, column=1, padx=5, pady=5)
+    eval_B.grid(row=10, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Grade C:").grid(row=11, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Grade C:").grid(row=11, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_C = ttk.Entry(eval_entry_frame)
-    eval_C.grid(row=11, column=1, padx=5, pady=5)
+    eval_C.grid(row=11, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Grade F:").grid(row=12, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Grade F:").grid(row=12, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_F = ttk.Entry(eval_entry_frame)
-    eval_F.grid(row=12, column=1, padx=5, pady=5)
+    eval_F.grid(row=12, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
-    ttk.Label(eval_entry_frame, text="Improvement Note:").grid(row=13, column=0, padx=5, pady=5)
+    ttk.Label(eval_entry_frame, text="Improvement Note:").grid(row=13, column=1, padx=pad_x, pady=pad_y, sticky='e')
     eval_improve = ttk.Entry(eval_entry_frame)
-    eval_improve.grid(row=13, column=1, padx=5, pady=5)
+    eval_improve.grid(row=13, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     # ADD the on_section_selected function from user's code
     def on_section_selected():
@@ -1359,20 +1430,24 @@ def gui():
         new_status = status_map.get((courseNumber, sectionID), "No Evaluation Entered")
         eval_sections_tree.item(sel[0], values=(courseNumber, sectionID, enrollmentCount, new_status))
 
-    ttk.Button(eval_entry_frame, text="Update Evaluation", command=handle_update_evaluation).grid(row=14, column=0, columnspan=2, pady=10)
+    ttk.Button(eval_entry_frame, text="Update Evaluation", command=handle_update_evaluation).grid(row=14, column=1, columnspan=2, pady=10)
 
     additional_queries_frame = ttk.Frame(query_notebook)
     query_notebook.add(additional_queries_frame, text="Additional Queries")
+    configure_centering(additional_queries_frame)
 
-    ttk.Label(additional_queries_frame, text="Degree ID:").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(additional_queries_frame, text="Degree ID:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
     aq_degree_entry = ttk.Entry(additional_queries_frame)
-    aq_degree_entry.grid(row=0, column=1, padx=5, pady=5)
+    aq_degree_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
 
     aq_courses_tree = ttk.Treeview(additional_queries_frame, columns=("CourseNumber","Name","IsCore"), show='headings')
     aq_courses_tree.heading("CourseNumber", text="Course Number")
     aq_courses_tree.heading("Name", text="Name")
     aq_courses_tree.heading("IsCore", text="Is Core")
-    aq_courses_tree.grid(row=2, column=0, columnspan=2, sticky='nsew')
+    aq_courses_tree.grid(row=2, column=1, columnspan=2, sticky='nsew')
+    additional_queries_frame.grid_rowconfigure(2, weight=1)
+    additional_queries_frame.grid_columnconfigure(0, weight=1)
+    additional_queries_frame.grid_columnconfigure(3, weight=1)
 
     def handle_degree_courses_query():
         for i in aq_courses_tree.get_children():
@@ -1382,9 +1457,66 @@ def gui():
         for r in rows:
             aq_courses_tree.insert('', 'end', values=(r['courseNumber'], r['name'], r['isCore']))
 
-    ttk.Button(additional_queries_frame, text="List Degree Courses", command=handle_degree_courses_query).grid(row=1, column=0, columnspan=2, pady=10)
+    ttk.Button(additional_queries_frame, text="List Degree Courses", command=handle_degree_courses_query).grid(row=1, column=1, columnspan=2, pady=10)
 
-    # Pack Tabs
+    show_note_frame = ttk.Frame(query_notebook)
+    query_notebook.add(show_note_frame, text="Show Improvement Note")
+    configure_centering(show_note_frame)
+
+    ttk.Label(show_note_frame, text="Course Number:").grid(row=0, column=1, padx=pad_x, pady=pad_y, sticky='e')
+    show_note_course_entry = ttk.Entry(show_note_frame)
+    show_note_course_entry.grid(row=0, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    ttk.Label(show_note_frame, text="Section ID:").grid(row=1, column=1, padx=pad_x, pady=pad_y, sticky='e')
+    show_note_section_entry = ttk.Entry(show_note_frame)
+    show_note_section_entry.grid(row=1, column=2, padx=pad_x, pady=pad_y, sticky='w')
+
+    notes_text = tk.Text(show_note_frame, width=50, height=10)
+    notes_text.grid(row=3, column=1, columnspan=2, sticky='nsew')
+    show_note_frame.grid_rowconfigure(3, weight=1)
+    show_note_frame.grid_columnconfigure(0, weight=1)
+    show_note_frame.grid_columnconfigure(3, weight=1)
+
+    def show_improvement_note():
+        # Enable editing to clear previous notes
+        notes_text.config(state='normal')
+        notes_text.delete('1.0', tk.END)
+
+        course_num = show_note_course_entry.get().strip()
+        section_id = show_note_section_entry.get().strip()
+
+        if not course_num or not section_id:
+            messagebox.showerror("Input Error", "Course Number and Section ID are required.")
+            # Disable again after message
+            notes_text.config(state='disabled')
+            return
+
+        conn = connect_to_db()
+        if not conn:
+            notes_text.config(state='disabled')
+            return
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT e.degreeID, d.name as degreeName, e.improvementNote
+            FROM Evaluation e
+            JOIN Degree d ON e.degreeID = d.degreeID
+            WHERE e.courseNumber = %s AND e.sectionID = %s AND e.improvementNote IS NOT NULL AND e.improvementNote <> ''
+        """, (course_num, section_id))
+        notes = cursor.fetchall()
+        conn.close()
+
+        if not notes:
+            notes_text.insert(tk.END, "No improvement notes found for this section.")
+        else:
+            for n in notes:
+                notes_text.insert(tk.END, f"Degree: {n['degreeID']} ({n['degreeName']})\nNote: {n['improvementNote']}\n---\n")
+
+        # Disable editing after inserting the notes
+        notes_text.config(state='disabled')
+
+    ttk.Button(show_note_frame, text="Show Improvement Note", command=show_improvement_note).grid(row=2, column=1, columnspan=2, pady=10)
+
     tabs.pack(expand=1, fill="both")
     root.mainloop()
         
