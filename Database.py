@@ -88,23 +88,19 @@ def handle_mysql_error(err):
 
 # Basic record addition functions
 def add_degree(degree_id, name, level):
-    import re
     """
     Add a new degree program.
+    
+    Parameters:
+        degree_id (str): The unique identifier for the degree
+        name (str): The name of the degree program
+        level (str): The academic level (BA, BS, MS, Ph.D., Cert)
     """
+    import re
+    
     # Ensure all required fields are provided
     if not degree_id.strip() or not name.strip() or not level.strip():
         messagebox.showerror("Input Error", "All fields (Degree ID, Name, and Level) are required.")
-        return
-    
-    # Validate degree_id is a positive integer
-    try:
-        degree_id = int(degree_id)  # Convert to integer for validation
-        if degree_id <= 0:
-            messagebox.showerror("Validation Error", "Degree ID must be a positive integer.")
-            return
-    except ValueError:
-        messagebox.showerror("Validation Error", "Degree ID must be a positive integer.")
         return
     
     # Validate degree name contains only alphabetic characters and spaces
@@ -119,7 +115,7 @@ def add_degree(degree_id, name, level):
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
 
-        # Validate level is one of the allowed values
+        # Validate level is one of the allowed values (can be expanded in future)
         valid_levels = ['BA', 'BS', 'MS', 'Ph.D.', 'Cert']
         if level not in valid_levels:
             raise ValueError(f"Invalid level. Must be one of: {', '.join(valid_levels)}")
@@ -130,16 +126,18 @@ def add_degree(degree_id, name, level):
         """, (degree_id, name, level))
         conn.commit()
         messagebox.showinfo("Success", "Degree added successfully.")
+    
     except mysql.connector.IntegrityError as e:
         if e.errno == errorcode.ER_DUP_ENTRY:
-            messagebox.showerror("Database Error", "A degree with the same name and level already exists.")
+            if 'unique_name_level' in str(e):
+                messagebox.showerror("Database Error", "A degree with this name and level already exists.")
+            else:
+                messagebox.showerror("Database Error", "A degree with this ID already exists.")
         else:
             messagebox.showerror("Database Error", f"Failed to add degree: {str(e)}")
     except ValueError as ve:
-        # Handle validation errors for the level
         messagebox.showerror("Validation Error", f"{ve}")
     except mysql.connector.Error as e:
-        # Handle other database errors
         messagebox.showerror("Database Error", f"Failed to add degree: {str(e)}")
     finally:
         if conn:
