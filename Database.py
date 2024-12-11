@@ -990,6 +990,17 @@ def get_degree_courses(degreeID):
     return rows
 
 def get_degree_goals(degreeID):
+     """
+    Retrieve the goals associated with a specific degree program.
+
+    Parameters:
+        degreeID (str): The unique identifier for the degree program.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'goalCode' (str): The unique code for the goal.
+            - 'description' (str): The description of the goal.
+    """
     conn = connect_to_db()
     if not conn:
         return []
@@ -1001,6 +1012,19 @@ def get_degree_goals(degreeID):
     return rows
 
 def get_courses_for_goals(degreeID, goalCodes):
+    """
+    Retrieve the courses associated with specific goals for a degree program.
+
+    Parameters:
+        degreeID (str): The unique identifier for the degree program.
+        goalCodes (list): A list of goal codes to filter the courses.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'courseNumber' (str): The unique identifier for the course.
+            - 'name' (str): The name of the course.
+            - 'goalCode' (str): The unique code for the goal associated with the course.
+    """
     conn = connect_to_db()
     if not conn or not goalCodes:
         return []
@@ -1020,6 +1044,19 @@ def get_courses_for_goals(degreeID, goalCodes):
     return rows
 
 def get_course_sections_in_range(courseNumber, startYear, startTerm, endYear, endTerm):
+     """
+    Retrieve course sections offered within a specific time range.
+
+    Parameters:
+        courseNumber (str): The unique identifier for the course).
+        startYear (int): The starting year of the range.
+        startTerm (str): The starting term of the range ('Spring', 'Summer', 'Fall').
+        endYear (int): The ending year of the range.
+        endTerm (str): The ending term of the range ('Spring', 'Summer', 'Fall').
+
+    Returns:
+        list: A list of dictionaries, where each dictionary represents a course section and contains all attributes of the Section table.
+    """
     term_order = {'Spring': 1, 'Summer': 2, 'Fall': 3}
     conn = connect_to_db()
     if not conn:
