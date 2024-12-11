@@ -31,7 +31,6 @@ def connect_to_db(run_schema=False):
                 schema_path = os.path.join(os.path.dirname(__file__), 'UniversitySchema.sql')
                 execute_schema_file(conn, schema_path)
             else:
-                # Some other error
                 raise
 
         # If run_schema is True, we explicitly run the schema again to ensure tables exist
@@ -115,7 +114,7 @@ def add_degree(degree_id, name, level):
             raise ConnectionError("Failed to establish a database connection.")
         cursor = conn.cursor()
 
-        # Validate level is one of the allowed values (can be expanded in future)
+        # Validate level is one of the allowed values
         valid_levels = ['BA', 'BS', 'MS', 'Ph.D.', 'Cert']
         if level not in valid_levels:
             raise ValueError(f"Invalid level. Must be one of: {', '.join(valid_levels)}")
