@@ -962,7 +962,7 @@ def update_evaluation(courseNumber, sectionID, year, term, degreeID, goalCode, e
     conn.close()
 
 def get_degree_courses(degreeID):
-     """
+    """
     Retrieve the courses associated with a given degree program.
 
     Parameters:
@@ -990,7 +990,7 @@ def get_degree_courses(degreeID):
     return rows
 
 def get_degree_goals(degreeID):
-     """
+    """
     Retrieve the goals associated with a specific degree program.
 
     Parameters:
@@ -1044,11 +1044,11 @@ def get_courses_for_goals(degreeID, goalCodes):
     return rows
 
 def get_course_sections_in_range(courseNumber, startYear, startTerm, endYear, endTerm):
-     """
+    """
     Retrieve course sections offered within a specific time range.
 
     Parameters:
-        courseNumber (str): The unique identifier for the course).
+        courseNumber (str): The unique identifier for the course.
         startYear (int): The starting year of the range.
         startTerm (str): The starting term of the range ('Spring', 'Summer', 'Fall').
         endYear (int): The ending year of the range.
@@ -1095,6 +1095,7 @@ def get_instructor_sections_in_range(instructorID, startYear, startTerm, endYear
         list: A list of dictionaries, where each dictionary represents a section taught by the instructor.
               Each dictionary contains all attributes of the Section table.
     """
+    
     term_order = {'Spring': 1, 'Summer': 2, 'Fall': 3}
     conn = connect_to_db()
     if not conn:
