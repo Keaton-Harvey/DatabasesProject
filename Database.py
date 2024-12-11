@@ -94,6 +94,9 @@ def add_degree(degree_id, name, level):
         degree_id (str): The unique identifier for the degree
         name (str): The name of the degree program
         level (str): The academic level (BA, BS, MS, Ph.D., Cert)
+
+     Returns:
+        None
     """
     import re
     
@@ -443,7 +446,16 @@ def add_section(course_number, section_id, year, term, instructor_id, enrollment
             conn.close()
 
 def add_course_degree(course_number, degree_id, is_core):
-    """Associate a course with a degree program."""
+    """Associate a course with a degree program.
+    
+    Parameters:
+        course_number (str): The unique identifier of the course to be associated
+        degree_id (str): The unique identifier of the degree program
+        is_core (bool): Indicates whether the course is a core course for the degree
+
+    Returns:
+        None
+    """
     conn = None
     try:
         conn = connect_to_db()
