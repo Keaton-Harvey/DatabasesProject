@@ -1081,6 +1081,20 @@ def get_course_sections_in_range(courseNumber, startYear, startTerm, endYear, en
     return filtered
 
 def get_instructor_sections_in_range(instructorID, startYear, startTerm, endYear, endTerm):
+    """
+    Retrieve sections taught by a specific instructor within a given time range.
+
+    Parameters:
+        instructorID (str): The unique identifier for the instructor.
+        startYear (int): The starting year of the range.
+        startTerm (str): The starting term of the range ('Spring', 'Summer', 'Fall').
+        endYear (int): The ending year of the range.
+        endTerm (str): The ending term of the range ('Spring', 'Summer', 'Fall').
+
+    Returns:
+        list: A list of dictionaries, where each dictionary represents a section taught by the instructor.
+              Each dictionary contains all attributes of the Section table.
+    """
     term_order = {'Spring': 1, 'Summer': 2, 'Fall': 3}
     conn = connect_to_db()
     if not conn:
