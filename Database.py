@@ -894,6 +894,18 @@ def get_evaluations_for_section(courseNumber, sectionID, year, term):
     return rows
 
 def get_degrees_for_course(courseNumber):
+    """
+    Retrieve the degree programs associated with a given course.
+
+    Parameters:
+        courseNumber (str): The unique identifier for the course (e.g., "CS101").
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'degreeID' (str): The unique identifier for the degree program.
+            - 'name' (str): The name of the degree program.
+            - 'isCore' (bool): Indicates whether the course is a core requirement for the degree.
+    """
     conn = connect_to_db()
     if not conn:
         return []
@@ -910,6 +922,26 @@ def get_degrees_for_course(courseNumber):
     return rows
 
 def update_evaluation(courseNumber, sectionID, year, term, degreeID, goalCode, evaluationType, gradeA, gradeB, gradeC, gradeF, improvementNote):
+    """
+    Update or insert evaluation details for a specific course section and goal.
+
+    Parameters:
+        courseNumber (str): The unique identifier for the course (e.g., "CS101").
+        sectionID (int): The unique identifier for the section.
+        year (int): The academic year for the section (e.g., 2024).
+        term (str): The term in the academic year (e.g., 'Spring', 'Summer', 'Fall').
+        degreeID (str): The unique identifier for the degree program.
+        goalCode (str): The unique code for the goal being evaluated.
+        evaluationType (str): The type of evaluation (e.g., "Homework", "Quiz").
+        gradeA (int): The number of students achieving grade A.
+        gradeB (int): The number of students achieving grade B.
+        gradeC (int): The number of students achieving grade C.
+        gradeF (int): The number of students achieving grade F.
+        improvementNote (str): A note for improvement, if any.
+
+    Returns:
+        None
+    """
     conn = connect_to_db()
     if not conn:
         return
@@ -930,6 +962,18 @@ def update_evaluation(courseNumber, sectionID, year, term, degreeID, goalCode, e
     conn.close()
 
 def get_degree_courses(degreeID):
+     """
+    Retrieve the courses associated with a given degree program.
+
+    Parameters:
+        degreeID (str): The unique identifier for the degree program.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'courseNumber' (str): The unique identifier for the course.
+            - 'name' (str): The name of the course.
+            - 'isCore' (bool): Indicates whether the course is a core requirement for the degree.
+    """
     conn = connect_to_db()
     if not conn:
         return []
