@@ -720,6 +720,23 @@ def get_available_courses_for_semester(year, term):
             conn.close()
 
 def get_evaluation_status_for_semester(year, term):
+    """
+    Retrieve the evaluation status for all sections offered in a given semester.
+
+    Parameters:
+        year (int): The academic year for which the evaluation status is retrieved (e.g., 2024).
+        term (str): The term in the academic year (e.g., 'Spring', 'Summer', 'Fall').
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'courseNumber' (str): The course number (e.g., "CS101").
+            - 'sectionID' (int): The section ID for the course.
+            - 'status' (str): The evaluation status for the section, with possible values:
+                - "No Evaluation Entered": No evaluation or grades entered for the section.
+                - "Fully Entered (With Improvement Note)": Evaluation, grades, and improvement note are all entered.
+                - "Fully Entered (No Improvement Note)": Evaluation and grades are entered, but no improvement note is present.
+                - "Partially Entered": Either evaluation or grades are partially entered.
+    """
     conn = connect_to_db()
     if not conn:
         return []
