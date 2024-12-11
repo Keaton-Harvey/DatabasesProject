@@ -792,6 +792,21 @@ def get_evaluation_status_for_semester(year, term):
     return results
 
 def get_sections_above_percentage(year, term, percentage):
+    """
+    Retrieve sections where the percentage of passing students exceeds a given threshold.
+
+    Parameters:
+        year (int): The academic year for which sections are retrieved (e.g., 2024).
+        term (str): The term in the academic year (e.g., 'Spring', 'Summer', 'Fall').
+        percentage (float): The minimum percentage of passing students to include the section.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'courseNumber' (str): The course number.
+            - 'sectionID' (int): The section ID for the course.
+            - 'enrollmentCount' (int): The total number of students enrolled in the section.
+            - 'passCount' (int): The total number of students who passed the section.
+    """
     conn = connect_to_db()
     if not conn:
         return []
@@ -818,6 +833,20 @@ def get_sections_above_percentage(year, term, percentage):
     return results
 
 def get_sections_for_instructor(year, term, instructor_id):
+    """
+    Retrieve sections taught by a specific instructor in a given semester.
+
+    Parameters:
+        year (int): The academic year for which sections are retrieved (e.g., 2024).
+        term (str): The term in the academic year (e.g., 'Spring', 'Summer', 'Fall').
+        instructor_id (int): The unique ID of the instructor.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - 'courseNumber' (str): The course number.
+            - 'sectionID' (int): The section ID for the course.
+            - 'enrollmentCount' (int): The total number of students enrolled in the section.
+    """
     conn = connect_to_db()
     if not conn:
         return []
@@ -833,6 +862,21 @@ def get_sections_for_instructor(year, term, instructor_id):
     return sections
 
 def get_evaluations_for_section(courseNumber, sectionID, year, term):
+    """
+    Retrieve evaluation details for a specific section, including associated goals and degrees.
+
+    Parameters:
+        courseNumber (str): The unique identifier for the course (e.g., "CS101").
+        sectionID (int): The unique identifier for the section.
+        year (int): The academic year for the section (e.g., 2024).
+        term (str): The term in the academic year (e.g., 'Spring', 'Summer', 'Fall').
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - Evaluation details (e.g., 'evaluationType', 'gradeCountA', 'gradeCountB', etc.).
+            - 'goalDescription' (str): Description of the goal being evaluated.
+            - 'degreeName' (str): Name of the associated degree.
+    """
     conn = connect_to_db()
     if not conn:
         return []
